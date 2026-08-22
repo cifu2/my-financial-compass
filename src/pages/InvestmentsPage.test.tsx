@@ -9,6 +9,9 @@ import { AUTH_STORAGE_KEY } from '../features/auth/services/authStore'
 import { seedGroupSnapshot } from '../features/groups/data/seeds'
 import { PREDEFINED_CATEGORIES } from '../features/categories/data/predefined'
 
+/** Short alias so test blocks keep the provider wiring readable. */
+const AppProvider = AppStateProvider
+
 /**
  * Personal/group investment flows (HU-0.9). The page reads the same group +
  * auth snapshots the services do (via localStorage), so the fixture writes the
@@ -163,13 +166,56 @@ describe('InvestmentsPage group support (HU-0.9)', () => {
   })
 })
 
+describe('InvestmentsPage permissions (HU-0.10)', () => {
+  it('shows the notice and hides the management form for a read-only member', () => {
+    const snapshot = seedGroupSnapshot()
+    const jose = snapshot.members.find((m) => m.groupId === 'grp-hogar' && m.userId === 'usr-jose')
+    if (jose) jose.role = 'readonly'
+    const joseAuth = buildSeededSnapshot({ id: 'usr-jose', email: 'jose@example.com', name: 'José', password: 'pass1234' })
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(joseAuth))
+    persistGroupSnapshot(snapshot)
+
+    render(
+      <AuthProvider initialSnapshot={joseAuth}>
+        <AppStateProvider initialStore={{ investments: [], transactions: [], budgets: [], investmentOwnerships: [], categories: PREDEFINED_CATEGORIES }}>
+          <InvestmentsPage />
+        </AppStateProvider>
+      </AuthProvider>,
+    )
+    fireEvent.change(screen.getByLabelText(/Ámbito/) as HTMLSelectElement, {
+      target: { value: 'grp-hogar' },
+    })
+    expect(screen.getByRole('alert').textContent).toMatch(/solo lectura|read-only/i)
+    expect(document.querySelector('form')).toBeNull()
+  })
+
+  it('shows the management form for a member whose group permits investments', () => {
+    const joseAuth = buildSeededSnapshot({ id: 'usr-jose', email: 'jose@example.com', name: 'José', password: 'pass1234' })
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(joseAuth))
+    persistGroupSnapshot(seedGroupSnapshot())
+
+    render(
+      <AuthProvider initialSnapshot={joseAuth}>
+        <AppProvider initialStore={{ investments: [], transactions: [], budgets: [], investmentOwnerships: [], categories: PREDEFINED_CATEGORIES }}>
+          <InvestmentsPage />
+        </AppProvider>
+      </AuthProvider>,
+    )
+    fireEvent.change(screen.getByLabelText(/Ámbito/) as HTMLSelectElement, {
+      target: { value: 'grp-hogar' },
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(document.querySelector('form')).not.toBeNull()
+  })
+})
+
 function renderPage(
   investments: Investment[] = [],
   ownerships: InvestmentOwnership[] = [],
 ) {
   return render(
     <AuthProvider initialSnapshot={buildAuth()}>
-      <AppStateProvider
+      <AppProvider
         initialStore={{
           transactions: [],
           categories: PREDEFINED_CATEGORIES,
@@ -180,7 +226,7 @@ function renderPage(
         }}
       >
         <InvestmentsPage />
-      </AppStateProvider>
+      </AppProvider>
     </AuthProvider>,
   )
 }

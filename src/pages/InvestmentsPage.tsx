@@ -7,6 +7,9 @@ import { UndoToast } from '../components/UndoToast'
 import { useUndo } from '../hooks/useUndo'
 import { useAppState } from '../state/AppState'
 import { useAuth } from '../features/auth/state/AuthContext'
+import { groupAccessFor } from '../features/groups/access'
+import { PermissionNotice } from '../features/groups/components/PermissionNotice'
+import { loadGroupSnapshot } from '../features/groups/services/groupStore'
 import {
   required,
   maxLength,
@@ -75,6 +78,14 @@ export default function InvestmentsPage() {
   const groups = useMemo(() => (userId ? investmentGroupsFor(userId) : []), [userId])
   const [scope, setScope] = useState<string>('')
   const [shares, setShares] = useState<Record<string, string>>({})
+
+  // HU-0.10: when a group scope is active the member may only manage the
+  // group's portfolio while the role/settings grant the capability. A
+  // read-only member sees the data but cannot add or delete investments, and
+  // a member may only delete their own rows.
+  const groupAccess = scope ? groupAccessFor(scope, userId) : null
+  const canManageInvestments = groupAccess?.canManageInvestments ?? true
+  const investmentRole = groupAccess?.role ?? null
 
   // When the scope changes to a group we default to an even ownership split.
   function selectScope(next: string) {
@@ -221,6 +232,14 @@ export default function InvestmentsPage() {
 
         <div className="panel">
           <h2>{t('common.investment')}</h2>
+          {scope !== '' && !canManageInvestments ? (
+            <PermissionNotice
+              locale={locale}
+              role={investmentRole}
+              groupName={scope ? groupNameFor(scope) : undefined}
+              baseKey="permission.manageInvestments"
+            />
+          ) : (
           <form onSubmit={saveInvestment} noValidate>
             <div className="form-row">
               <TextField
@@ -302,6 +321,7 @@ export default function InvestmentsPage() {
               </button>
             </div>
           </form>
+          )}
         </div>
 
         <div className="panel">
@@ -348,13 +368,15 @@ export default function InvestmentsPage() {
                         )}
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn btn--danger"
-                          onClick={() => setConfirming({ id: item.id, label: item.name })}
-                        >
-                          {t('common.delete')}
-                        </button>
+                        {groupAccess?.canDeleteRecord(item.createdBy) ?? true ? (
+                          <button
+                            type="button"
+                            className="btn btn--danger"
+                            onClick={() => setConfirming({ id: item.id, label: item.name })}
+                          >
+                            {t('common.delete')}
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   )
@@ -409,4 +431,9 @@ export default function InvestmentsPage() {
 function toIsoDate(ddmmYYYY: string): string {
   const [d, m, y] = ddmmYYYY.split('/').map((p) => (p || '').padStart(2, '0'))
   return `${y}-${m}-${d}`
+}
+
+/** Group display name for the permission notice, or null when unknown. */
+function groupNameFor(groupId: string): string | null {
+  return loadGroupSnapshot().groups.find((g) => g.id === groupId)?.name ?? null
 }

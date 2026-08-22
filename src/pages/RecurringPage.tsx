@@ -23,6 +23,7 @@ import { translate, type UIKey } from '../lib/i18n'
 import { formatDate, todayIso } from '../lib/dates'
 import { readSessionUser } from '../features/auth/services/authService'
 import { listUserGroups } from '../features/groups/services/groupService'
+import { groupAccessFor } from '../features/groups/access'
 import { can } from '../features/groups/permissions'
 import '../features/recurring/recurring.css'
 
@@ -268,6 +269,17 @@ export default function RecurringPage() {
 
   const formKey = mode.kind === 'edit' ? `edit:${mode.recurring.id}` : 'create'
 
+  // HU-0.10: shared rules may only be managed while the member keeps edit
+  // rights in the rule's group (data.edit); locked rules remain visible but
+  // lose their management actions. Personal rules are always manageable.
+  const canManageRule = useMemo(() => {
+    return (r: RecurringTransaction): boolean => {
+      if (r.groupId === undefined) return true
+      const access = groupAccessFor(r.groupId, currentUserId || undefined)
+      return access.canEditRecord(r.createdBy)
+    }
+  }, [currentUserId])
+
   return (
     <Page title={t('section.recurring')}>
       <div className="stack">
@@ -316,6 +328,7 @@ export default function RecurringPage() {
             onEdit={startEdit}
             onToggleActive={onToggleActive}
             onDelete={(r) => setPendingDelete(r)}
+            canManage={canManageRule}
           />
         </div>
 

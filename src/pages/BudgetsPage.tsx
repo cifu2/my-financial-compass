@@ -20,6 +20,9 @@ import {
 } from '../features/budgeting/services/budgetScope'
 import type { Budget, BudgetPeriod } from '../features/budgeting/types'
 import { readSessionUser } from '../features/auth/services/authService'
+import { groupAccessFor } from '../features/groups/access'
+import { loadGroupSnapshot } from '../features/groups/services/groupStore'
+import { PermissionNotice } from '../features/groups/components/PermissionNotice'
 import {
   required,
   mustBeNumber,
@@ -69,6 +72,16 @@ export default function BudgetsPage() {
   const contextGroupId = groupId
   const isGroupContext = contextGroupId !== null
   const currentUserId = readSessionUser()?.id ?? null
+
+  // HU-0.10: in a group context, the member may only manage the group's
+  // budgets when the role/settings grant the capability. Read-only members or
+  // members of a group that revokes the permission see a clear notice instead
+  // of the form and management actions.
+  const groupAccess = contextGroupId
+    ? groupAccessFor(contextGroupId, currentUserId ?? undefined)
+    : null
+  const canManageGroupBudgets = groupAccess?.canManageBudgets ?? true
+  const budgetRole = groupAccess?.role ?? null
 
   const month = currentMonthKey()
   const prevMonth = previousMonthKey()
@@ -241,7 +254,16 @@ export default function BudgetsPage() {
         <div className="panel">
           <h2>{editingId ? t('form.edit') : t('common.budget')}</h2>
           <BudgetContextSelector />
-          <form onSubmit={saveBudget} noValidate>
+          {isGroupContext && !canManageGroupBudgets && (
+            <PermissionNotice
+              locale={locale}
+              role={budgetRole}
+              groupName={contextGroupId ? groupNameFor(contextGroupId) : undefined}
+              baseKey="permission.manageBudgets"
+            />
+          )}
+          {(!isGroupContext || canManageGroupBudgets) && (
+            <form onSubmit={saveBudget} noValidate>
             <div className="form-row">
               <SelectField
                 label={t('fld.category')}
@@ -296,6 +318,7 @@ export default function BudgetsPage() {
               </button>
             </div>
           </form>
+          )}
         </div>
 
         <div className="stack">
@@ -314,8 +337,10 @@ export default function BudgetsPage() {
             isGroup={isGroupContext}
             breakdownLabel={t('budget.byMember')}
             emptyText={isGroupContext ? t('budget.noGroupBudgets') : undefined}
-            onEdit={startEdit}
-            onDelete={(b) => setConfirming(b)}
+            onEdit={canManageGroupBudgets ? startEdit : undefined}
+            onDelete={
+              canManageGroupBudgets ? (b) => setConfirming(b) : undefined
+            }
           />
         </div>
       </div>
@@ -359,4 +384,9 @@ export default function BudgetsPage() {
       ))}
     </Page>
   )
+}
+
+/** Group display name for the permission notice, or null when unknown. */
+function groupNameFor(groupId: string): string | null {
+  return loadGroupSnapshot().groups.find((g) => g.id === groupId)?.name ?? null
 }

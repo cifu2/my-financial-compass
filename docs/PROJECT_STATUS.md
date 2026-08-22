@@ -2,7 +2,16 @@
 
 ## Resumen Ejecutivo
 
-El proyecto está operativo con **build limpio, 243 tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), con persistencia, loading states y error boundary global.
+El proyecto está operativo con **build limpio, tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), el **modelo multiusuario con grupos** (HU-0.4/0.8/0.9, MYF-19..27) y el **sistema de permisos por rol** (HU-0.10, MYF-28), con persistencia, loading states y error boundary global.
+
+## ✅ Permisos por rol (HU-0.10, MYF-28 COMPLETADO)
+
+- **Matriz declarativa** en `features/groups/permissions.ts`: `ROLE_CAPABILITIES` + `can(role, capability)` cubre "ver datos", "crear/editar", "invitar/expulsar/cambiar roles" y "borrar grupo" exactamente como la HU.
+- **Ownership-aware**: `canEditData`/`canDeleteData` — el admin edita/borra cualquier fila del grupo; el **miembro solo las suyas** (`transaction.userId`, `investment.createdBy`); `readonly` nunca muta.
+- **Configurable por grupo**: `Group.settings.membersCanManageBudgets|Investments` revocan a los miembros la gestión de presupuestos/inversiones (parseo estricto en `groupStore`, guardado vía `groupService.updateGroup` admin-only).
+- **Acceso resuelto**: `features/groups/access.ts` (`groupAccessFor`) expone `canView/canEdit/canManageBudgets/canManageInvestments/canManageMembers/canDeleteGroup` y los checks por registro para el usuario+grupo activo.
+- **UI que oculta/muestra**: `PermissionNotice` accesible (`role="alert"`) + gating en Presupuestos (form/acciones ocultos sin `budget.manage`), Inversiones (`investment.manage` + propiedad en eliminar) y Recurrentes (`canManage` por fila en `RecurringList`).
+- **Tests**: matriz completa, ownership, settings, persistencia y gating de UI (suite total estable). [ADR-0010](docs/adr/0010-permissions.md)
 
 ## ✅ Autenticación de usuarios (MYF-20 COMPLETADO)
 

@@ -35,6 +35,62 @@ describe('groupStore', () => {
     expect(loaded).toEqual(snapshot)
   })
 
+  it('round-trips optional per-group settings (HU-0.10)', () => {
+    const snapshot = seedGroupSnapshot()
+    snapshot.groups[0].settings = { membersCanManageBudgets: false, membersCanManageInvestments: true }
+    const parsed = parseGroupSnapshot(JSON.stringify(snapshot))
+    expect(parsed?.groups[0].settings).toEqual({
+      membersCanManageBudgets: false,
+      membersCanManageInvestments: true,
+    })
+  })
+
+  it('drops non-boolean settings fields and ignores invalid settings blobs', () => {
+    const withGarbage = parseGroupSnapshot(
+      JSON.stringify({
+        version: 1,
+        groups: [
+          {
+            id: 'g1',
+            name: 'A',
+            description: '',
+            icon: 'home',
+            color: '#155e75',
+            currency: 'EUR',
+            createdBy: 'u1',
+            createdAt: '2026-08-20',
+            settings: { membersCanManageBudgets: 'no', x: 1 },
+          },
+        ],
+        members: [],
+        invitations: [],
+      }),
+    )
+    expect(withGarbage?.groups[0].settings).toBeUndefined()
+
+    const nonObject = parseGroupSnapshot(
+      JSON.stringify({
+        version: 1,
+        groups: [
+          {
+            id: 'g1',
+            name: 'A',
+            description: '',
+            icon: 'home',
+            color: '#155e75',
+            currency: 'EUR',
+            createdBy: 'u1',
+            createdAt: '2026-08-20',
+            settings: 'nope',
+          },
+        ],
+        members: [],
+        invitations: [],
+      }),
+    )
+    expect(nonObject?.groups[0].settings).toBeUndefined()
+  })
+
   it('returns empty snapshot for an empty store', () => {
     expect(loadGroupSnapshot()).toEqual(emptyGroupSnapshot())
   })

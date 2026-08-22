@@ -1,4 +1,5 @@
 import type { CurrencyCode } from '../../dashboard/services/currency'
+import type { GroupSettings } from '../permissions'
 
 /**
  * Multiuser model (groups) — foundation for shared ledgers.
@@ -35,6 +36,11 @@ export interface Group {
   /** Id of the user who created the group (its first admin). */
   createdBy: string
   createdAt: string
+  /**
+   * Per-group configuration (e.g. whether members manage budgets/investments,
+   * HU-0.10). Absent means the permission fallback of the role applies.
+   */
+  settings?: GroupSettings
 }
 
 /** Row of the join table users ↔ groups. */

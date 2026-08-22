@@ -105,6 +105,38 @@ describe('group CRUD', () => {
     }
   })
 
+  it('stores per-group settings at creation and update (HU-0.10)', async () => {
+    const created = await createGroup(SEED_USERS.ana.id, {
+      name: 'Restricciones',
+      settings: { membersCanManageBudgets: false, membersCanManageInvestments: false },
+    })
+    expect(created.ok).toBe(true)
+    if (!created.ok) throw new Error('setup failed')
+    expect(created.data.settings).toEqual({
+      membersCanManageBudgets: false,
+      membersCanManageInvestments: false,
+    })
+
+    const toggled = await updateGroup(created.data.id, SEED_USERS.ana.id, {
+      settings: { membersCanManageBudgets: true },
+    })
+    expect(toggled.ok).toBe(true)
+    if (toggled.ok) {
+      expect(toggled.data.settings).toEqual({
+        membersCanManageBudgets: true,
+        membersCanManageInvestments: false,
+      })
+    }
+  })
+
+  it('rejects settings changes from non-admins', async () => {
+    const updated = await updateGroup('grp-hogar', SEED_USERS.jose.id, {
+      settings: { membersCanManageBudgets: false },
+    })
+    expect(updated.ok).toBe(false)
+    if (!updated.ok) expect(updated.error.code).toBe('not-admin')
+  })
+
   it('rejects updates from non-admins', async () => {
     const edited = await updateGroup('grp-hogar', SEED_USERS.jose.id, {
       name: 'Hackeado',

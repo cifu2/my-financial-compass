@@ -16,6 +16,7 @@ import {
   isValidGroupRole,
   roleAtLeast,
 } from '../types'
+import type { GroupSettings } from '../permissions'
 import {
   loadGroupSnapshot,
   newGroupId,
@@ -209,6 +210,7 @@ export interface CreateGroupInput {
   icon?: string
   color?: string
   currency?: string
+  settings?: GroupSettings
 }
 
 /** Creates a group owned by `createdBy`, who becomes its first admin. */
@@ -241,6 +243,7 @@ export async function createGroup(
     currency,
     createdBy: ownerId,
     createdAt: now,
+    ...(normalizeSettings(input.settings) ? { settings: normalizeSettings(input.settings) } : {}),
   }
   const admin: GroupMember = {
     groupId: group.id,
@@ -279,6 +282,24 @@ export interface UpdateGroupInput {
   icon?: string
   color?: string
   currency?: string
+  settings?: GroupSettings
+}
+
+/**
+ * Normalizes a settings bag, dropping unknown/falsy field types so the domain
+ * never stores partial garbage. An empty result returns undefined so callers
+ * can decide whether to attach the field at all.
+ */
+function normalizeSettings(input: GroupSettings | undefined): GroupSettings | undefined {
+  if (input === undefined) return undefined
+  const settings: GroupSettings = {}
+  if (typeof input.membersCanManageBudgets === 'boolean') {
+    settings.membersCanManageBudgets = input.membersCanManageBudgets
+  }
+  if (typeof input.membersCanManageInvestments === 'boolean') {
+    settings.membersCanManageInvestments = input.membersCanManageInvestments
+  }
+  return Object.keys(settings).length > 0 ? settings : undefined
 }
 
 /** Updates editable group fields. Only a group admin may edit. */
@@ -314,6 +335,15 @@ export async function updateGroup(
     const currency = normalizeCurrency(input.currency)
     if (!currency) return fail('invalid-currency', 'Divisa no válida.')
     group.currency = currency
+  }
+  if (input.settings !== undefined) {
+    const merged: GroupSettings = {
+      ...(group.settings ?? {}),
+      ...normalizeSettings(input.settings),
+    }
+    const normalized = normalizeSettings(merged)
+    if (normalized) group.settings = normalized
+    else delete group.settings
   }
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo guardar el grupo.')
