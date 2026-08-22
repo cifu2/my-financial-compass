@@ -1,15 +1,19 @@
-import { lazy, Suspense, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { AppStateProvider, useAppState } from './state/AppState'
+import { AuthProvider, useAuth } from './features/auth/state/AuthContext'
+import { AuthScreen } from './features/auth/components/AuthScreen'
+import { UserMenu } from './features/auth/components/UserMenu'
 import { MainNav } from './components/MainNav'
 import { Breadcrumb } from './components/Breadcrumb'
 import { DashboardSkeleton } from './components/DashboardSkeleton'
 import { PageLoader } from './components/PageLoader'
 import { ErrorBoundary, type ErrorBoundaryStrings } from './components/ErrorBoundary'
-import { useRoute, type Route } from './router'
+import { useRoute, isAuthKey, DEFAULT_ROUTE, type Route } from './router'
 import { translate, type UIKey } from './lib/i18n'
 import type { Locale } from './lib/dates'
 import DashboardPage from './pages/DashboardPage'
 import './index.css'
+import './features/auth/auth.css'
 
 // Route-level code splitting: every secondary page lives in its own chunk
 // (loaded on demand) so the initial route only ships the shell + dashboard.
@@ -48,6 +52,12 @@ function errorBoundaryStrings(locale: Locale): ErrorBoundaryStrings {
 function AppShell() {
   const { route, navigate } = useRoute()
   const { locale, isBooting } = useAppState()
+  const { user } = useAuth()
+
+  // An authenticated user browsing an auth screen is sent back to the dashboard.
+  useEffect(() => {
+    if (isAuthKey(route.key)) navigate(DEFAULT_ROUTE)
+  }, [route.key, navigate])
 
   return (
     <div className="app-shell">
@@ -60,6 +70,7 @@ function AppShell() {
             My Financial Compass
           </a>
           <MainNav current={route} onNavigate={navigate} />
+          {user && <UserMenu />}
         </div>
       </header>
       <main className="app-main" id="content">
@@ -76,13 +87,31 @@ function AppShell() {
   )
 }
 
+/**
+ * Session gate: shows a boot skeleton while the persisted session hydrates,
+ * the standalone login/register screen for guests, and the app shell once a
+ * user is authenticated.
+ */
+function AppGate() {
+  const { status } = useAuth()
+  const { locale } = useAppState()
+
+  if (status === 'checking') {
+    return <DashboardSkeleton label={translate(locale, 'loading.dashboard')} />
+  }
+  if (status === 'guest') return <AuthScreen />
+  return <AppShell />
+}
+
 function App() {
   return (
-    <AppStateProvider>
-      <AppErrorBoundary>
-        <AppShell />
-      </AppErrorBoundary>
-    </AppStateProvider>
+    <AuthProvider>
+      <AppStateProvider>
+        <AppErrorBoundary>
+          <AppGate />
+        </AppErrorBoundary>
+      </AppStateProvider>
+    </AuthProvider>
   )
 }
 

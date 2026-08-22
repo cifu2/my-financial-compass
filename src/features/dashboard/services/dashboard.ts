@@ -4,8 +4,10 @@ import type { Investment } from '../../investments/types'
 import { monthKey } from '../../budgeting/services/budgetCalculator'
 import {
   convert,
+  isCurrencyCode,
   PRIMARY_CURRENCY,
   RATES_BASE_EUR,
+  type CurrencyCode,
   type ExchangeRates,
   type PartialRates,
 } from './currency'
@@ -157,9 +159,10 @@ export function investmentNativeValue(investment: Investment): number {
 export function investmentPrimaryValue(
   investment: Investment,
   rates?: PartialRates,
+  primary: string = PRIMARY_CURRENCY,
 ): number | null {
   const nativeValue = investmentNativeValue(investment)
-  const converted = convert(nativeValue, investment.currency, PRIMARY_CURRENCY, rates)
+  const converted = convert(nativeValue, investment.currency, primary, rates)
   return converted === null ? null : round2(converted)
 }
 
@@ -167,10 +170,11 @@ export function investmentPrimaryValue(
 export function netWorthItems(
   investments: readonly Investment[],
   rates: PartialRates,
+  primary: string = PRIMARY_CURRENCY,
 ): NetWorthItem[] {
   return investments.map((inv) => {
     const nativeValue = investmentNativeValue(inv)
-    const primaryValue = investmentPrimaryValue(inv, rates)
+    const primaryValue = investmentPrimaryValue(inv, rates, primary)
     return {
       id: inv.id,
       name: inv.name,
@@ -192,24 +196,26 @@ export function netWorth(
   transactions: readonly Transaction[],
   investments: readonly Investment[],
   rates: PartialRates = RATES_BASE_EUR,
+  primary: string = PRIMARY_CURRENCY,
 ): NetWorth {
+  const currency: CurrencyCode = isCurrencyCode(primary) ? primary : PRIMARY_CURRENCY
   const liquid = liquidAssets(transactions)
   let investedTotal = 0
   let unconvertedCount = 0
   for (const inv of investments) {
-    const primary = investmentPrimaryValue(inv, rates)
-    if (primary === null) {
+    const primaryValue = investmentPrimaryValue(inv, rates, currency)
+    if (primaryValue === null) {
       unconvertedCount += 1
       continue
     }
-    investedTotal += primary
+    investedTotal += primaryValue
   }
   const investmentsValue = round2(investedTotal)
   return {
     liquidAssets: liquid,
     investments: investmentsValue,
     total: round2(liquid + investmentsValue),
-    currency: PRIMARY_CURRENCY,
+    currency,
     unconvertedCount,
   }
 }

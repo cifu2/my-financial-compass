@@ -69,6 +69,11 @@ export function hasRate(
   return code in rates && typeof rates[code] === 'number'
 }
 
+/** Type guard for a supported ISO code (used by the profile primary currency). */
+export function isCurrencyCode(value: string): value is CurrencyCode {
+  return Object.prototype.hasOwnProperty.call(RATES_BASE_EUR, value)
+}
+
 /**
  * Converts `amount` from `from` to `to`, or returns `null` when either
  * currency is unknown. Identity (same currency) always returns the input.

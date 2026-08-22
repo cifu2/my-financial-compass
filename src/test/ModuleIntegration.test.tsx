@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import App from '../App'
 import { savePersistedState } from '../lib/storageService'
+import { seedAuthSession as seedSession } from './authSeed'
 import { PREDEFINED_CATEGORIES } from '../features/categories/data/predefined'
 import type { Budget } from '../features/budgeting/types'
 
@@ -129,6 +130,9 @@ async function fillAndSave(opts: {
 describe('Module-to-module integration (MYF-14)', () => {
   beforeEach(() => {
     localStorage.clear()
+    // The app now gates data behind a signed-in session; seed one so these
+    // cross-module flows boot into the app instead of the login screen.
+    seedSession()
     window.location.hash = ''
   })
   afterEach(() => {

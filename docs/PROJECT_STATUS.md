@@ -2,7 +2,19 @@
 
 ## Resumen Ejecutivo
 
-El proyecto está operativo con **build limpio, 185+ tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) con persistencia, loading states y error boundary global.
+El proyecto está operativo con **build limpio, 243 tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), con persistencia, loading states y error boundary global.
+
+## ✅ Autenticación de usuarios (MYF-20 COMPLETADO)
+
+- **Registro con email y contraseña** (validación de email, contraseña segura ≥8 con letras y números), **login** y **cierre de sesión**
+- **Recuperación de contraseña**: flujo de dos pasos (email → código de 6 dígitos). En modo demo el código se muestra en pantalla (no hay servidor de email todavía)
+- **Perfil editable**: nombre, avatar (paleta de colores) y **moneda principal**
+- **Borrado de cuenta** con confirmación explícita (escribir el email) + modal; borra datos financieros y sesión
+- **Guard de sesión**: pantallas `#/login`, `#/register`, `#/forgot-password` fuera de la navegación principal; un visitante anónimo no ve la app
+- **Arquitectura migrable**: `features/auth/services/authService.ts` con API async tipo REST local sobre `localStorage`; usar un backend real solo reimplementa ese módulo
+- **Contraseñas**: digest con sal (simulado, NO criptográfico — ver ADR-0007)
+- **Tests**: 54 nuevos/ajustados (password, service, contexto, flujos de app e integración) → suite total **243**
+- [ADR-0007](docs/adr/0007-auth.md)
 
 ## Estado por Módulo
 

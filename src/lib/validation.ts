@@ -13,6 +13,10 @@ export const messages = {
     'date.invalid': 'Introduzca una fecha válida (DD/MM/AAAA).',
     'date.future': 'La fecha no puede ser anterior a hoy.',
     'date.notFuture': 'La fecha no puede ser posterior a hoy.',
+    'email.invalid': 'Introduzca un email válido.',
+    'email.taken': 'Ya existe una cuenta con ese email.',
+    'password.weak': 'La contraseña debe tener al menos 8 caracteres con letras y números.',
+    'password.mismatch': 'Las contraseñas no coinciden.',
   },
   en: {
     'required.field': 'This field is required.',
@@ -26,6 +30,10 @@ export const messages = {
     'date.invalid': 'Please enter a valid date (DD/MM/YYYY).',
     'date.future': 'The date cannot be before today.',
     'date.notFuture': 'The date cannot be after today.',
+    'email.invalid': 'Please enter a valid email address.',
+    'email.taken': 'An account with this email already exists.',
+    'password.weak': 'The password must be at least 8 characters with letters and numbers.',
+    'password.mismatch': 'The passwords do not match.',
   },
 } as const satisfies Record<Locale, Record<string, string>>
 
@@ -120,6 +128,37 @@ export function maxLength(max: number): Validator {
     if (value === undefined || value === null) return null
     const len = String(value).trim().length
     return len > max ? formatMessage(locale, 'text.tooLong', { max }) : null
+  }
+}
+
+/** Basic structural email check (no DNS/resolver verification). */
+export function isEmail(): Validator {
+  return (value, { locale }) => {
+    if (value === undefined || value === null || String(value).trim() === '') return null
+    const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+    return pattern.test(String(value).trim()) ? null : formatMessage(locale, 'email.invalid')
+  }
+}
+
+/** Enforces the shared password policy (letters + numbers, min length). */
+export function strongPassword(): Validator {
+  return (value, { locale }) => {
+    if (value === undefined || value === null || String(value).trim() === '') return null
+    const password = String(value)
+    const hasLetter = /[a-zA-Z]/.test(password)
+    const hasNumber = /[0-9]/.test(password)
+    if (password.length < 8 || !hasLetter || !hasNumber) {
+      return formatMessage(locale, 'password.weak')
+    }
+    return null
+  }
+}
+
+/** Password confirmation: must equal the value returned by `getOther`. */
+export function passwordMatches(getOther: () => string): Validator {
+  return (value, { locale }) => {
+    if (value === undefined || value === null || String(value).trim() === '') return null
+    return String(value) === getOther() ? null : formatMessage(locale, 'password.mismatch')
   }
 }
 

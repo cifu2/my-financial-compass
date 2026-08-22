@@ -23,6 +23,11 @@ cinco módulos:
 - **Linting:** ESLint (typescript-eslint + react-hooks)
 - **Testing:** Vitest + Testing Library + jsdom
 - **Routing:** SPA con hash (`#/…`), sin librería externa
+- **Auth:** sesión local con `localStorage`, backend simulado migrable (ADR-0007)
+
+> Al arrancar pide **Iniciar sesión / Crear cuenta**: la app es privada y los
+> datos solo se muestran con sesión iniciada. Los datos financieros viven en
+> el dispositivo y se borran con la cuenta.
 
 ## Convenciones de código
 
@@ -65,6 +70,11 @@ src/
 │   ├── Skeleton.tsx       # Placeholders de carga
 │   └── UndoToast.tsx      # Toast de "Deshacer" tras eliminar
 ├── features/              # Los cinco módulos (uno por carpeta)
+│   ├── auth/              # Cuentas, sesión y perfil (MYF-20)
+│   │   ├── components/    # Login, registro, recuperación, perfil, header
+│   │   ├── services/      # authService (REST local) + password + store
+│   │   ├── state/         # AuthContext (sesión + moneda principal)
+│   │   └── types/
 │   ├── transactions/      # Módulo 1
 │   │   └── types/
 │   ├── recurring/         # Módulo 2

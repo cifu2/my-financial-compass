@@ -8,8 +8,13 @@ export type SectionKey =
   | 'investments'
   | 'settings'
 
+/** Guest-only auth screens (outside the main nav). */
+export type AuthKey = 'login' | 'register' | 'forgot-password'
+
+export type RouteKey = SectionKey | AuthKey
+
 export interface Route {
-  key: SectionKey
+  key: RouteKey
   path: string
   label: string
   crumb: string
@@ -24,6 +29,16 @@ export const ROUTES: Route[] = [
   { key: 'settings', path: '/settings', label: 'Settings', crumb: 'Settings' },
 ]
 
+export const AUTH_ROUTES: ReadonlyArray<Pick<Route, 'key' | 'path'>> = [
+  { key: 'login', path: '/login' },
+  { key: 'register', path: '/register' },
+  { key: 'forgot-password', path: '/forgot-password' },
+]
+
+export function isAuthKey(key: RouteKey): key is AuthKey {
+  return key === 'login' || key === 'register' || key === 'forgot-password'
+}
+
 export const DEFAULT_ROUTE: Route = ROUTES[0]
 
 export function hrefFor(route: Route): string {
@@ -37,7 +52,11 @@ function readPath(): string {
 
 export function matchRoute(path: string): Route {
   const normalized = path.split('?')[0].replace(/\/+$/, '') || '/'
-  return ROUTES.find((r) => r.path === normalized) ?? DEFAULT_ROUTE
+  const section = ROUTES.find((r) => r.path === normalized)
+  if (section) return section
+  const auth = AUTH_ROUTES.find((r) => r.path === normalized)
+  if (auth) return { key: auth.key, path: normalized, label: auth.key, crumb: auth.key }
+  return DEFAULT_ROUTE
 }
 
 export function useRoute(): { route: Route; navigate: (route: Route) => void } {

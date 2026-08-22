@@ -4,6 +4,7 @@ import { monthLabel } from '../../../lib/dates'
 import { formatMoney, formatSignedMoney } from '../../../lib/money'
 import { translate, type UIKey } from '../../../lib/i18n'
 import type { CategoryExpense, MonthComparison, MonthSummary } from '../types/index'
+import { useAppCurrency } from '../../auth/state/AuthContext'
 
 export interface MonthlyHistoryRow {
   month: string
@@ -21,6 +22,7 @@ function renderTopFive(
   categories: readonly CategoryExpense[],
   t: (key: UIKey) => string,
   locale: Locale,
+  currency: string,
 ) {
   if (categories.length === 0) {
     return <p className="text-muted mt-0">{t('dash.noExpenses')}</p>
@@ -31,7 +33,7 @@ function renderTopFive(
         <li key={item.categoryId} className="breakdown-row">
           <span className="breakdown-row__name">{item.categoryName}</span>
           <span className="breakdown-row__figures">
-            {formatMoney(item.amount, locale)}
+            {formatMoney(item.amount, locale, currency)}
             <span className="text-note"> · {item.percentage} %</span>
           </span>
         </li>
@@ -47,6 +49,7 @@ function renderTopFive(
  */
 export function MonthlyHistoryView({ rows, locale }: MonthlyHistoryViewProps) {
   const t = useCallback((key: UIKey) => translate(locale, key), [locale])
+  const currency = useAppCurrency()
   const sep = locale === 'es' ? ';' : ','
 
   const csv = useMemo(() => {
@@ -119,13 +122,13 @@ export function MonthlyHistoryView({ rows, locale }: MonthlyHistoryViewProps) {
                     <summary>{monthLabel(row.month, locale)}</summary>
                     <div className="monthly-history__top">
                       <strong>{t('dash.topFive')}</strong>
-                      {renderTopFive(row.summary.topCategories, t, locale)}
+                      {renderTopFive(row.summary.topCategories, t, locale, currency)}
                     </div>
                   </details>
                 </th>
-                <td>{formatMoney(row.summary.totalIncome, locale)}</td>
-                <td>{formatMoney(row.summary.totalExpenses, locale)}</td>
-                <td>{formatSignedMoney(row.summary.cashFlow, locale)}</td>
+                <td>{formatMoney(row.summary.totalIncome, locale, currency)}</td>
+                <td>{formatMoney(row.summary.totalExpenses, locale, currency)}</td>
+                <td>{formatSignedMoney(row.summary.cashFlow, locale, currency)}</td>
                 <td>
                   {cmp && cmp.percent !== null ? (
                     <span

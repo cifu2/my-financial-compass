@@ -2,6 +2,7 @@ import type { Locale } from '../../../lib/dates'
 import { formatMoney } from '../../../lib/money'
 import type { BudgetRow } from '../../budgeting/types/index'
 import { BudgetProgressBar } from '../../budgeting/components/BudgetProgressBar'
+import { useAppCurrency } from '../../auth/state/AuthContext'
 
 export interface BudgetSnapshotProps {
   rows: readonly BudgetRow[]
@@ -14,6 +15,7 @@ export interface BudgetSnapshotProps {
  * threshold-colored progress bar plus spent/limit figures.
  */
 export function BudgetSnapshot({ rows, emptyText, locale }: BudgetSnapshotProps) {
+  const currency = useAppCurrency()
   if (rows.length === 0) {
     return <p className="text-muted mt-0">{emptyText}</p>
   }
@@ -25,8 +27,8 @@ export function BudgetSnapshot({ rows, emptyText, locale }: BudgetSnapshotProps)
           <div className="budget-snapshot__head">
             <span className="budget-snapshot__name">{row.categoryName}</span>
             <span className="budget-snapshot__figures">
-              {formatMoney(row.spent, locale)} /{' '}
-              {formatMoney(row.budget.limit, locale)}
+              {formatMoney(row.spent, locale, currency)} /{' '}
+              {formatMoney(row.budget.limit, locale, currency)}
             </span>
           </div>
           <BudgetProgressBar percentage={row.percentage} level={row.level} />

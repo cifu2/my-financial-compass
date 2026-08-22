@@ -1,6 +1,7 @@
 import type { Locale } from '../../../lib/dates'
 import { formatMoney } from '../../../lib/money'
 import type { CategoryExpense } from '../types/index'
+import { useAppCurrency } from '../../auth/state/AuthContext'
 
 export interface ExpenseBreakdownProps {
   items: readonly CategoryExpense[]
@@ -14,6 +15,7 @@ export interface ExpenseBreakdownProps {
  * decorative (`role="presentation"`).
  */
 export function ExpenseBreakdown({ items, emptyText, locale }: ExpenseBreakdownProps) {
+  const currency = useAppCurrency()
   if (items.length === 0) {
     return <p className="text-muted mt-0">{emptyText}</p>
   }
@@ -27,7 +29,7 @@ export function ExpenseBreakdown({ items, emptyText, locale }: ExpenseBreakdownP
             <div className="breakdown-row__top">
               <span className="breakdown-row__name">{item.categoryName}</span>
               <span className="breakdown-row__figures">
-                {formatMoney(item.amount, locale)}
+                {formatMoney(item.amount, locale, currency)}
                 <span className="text-note"> · {item.percentage} %</span>
               </span>
             </div>

@@ -2,9 +2,15 @@ import { describe, it, expect, afterEach, beforeEach } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
 import App from '../App'
 import { savePersistedState } from '../lib/storageService'
+import { seedAuthSession } from './authSeed'
 
 describe('App integration (MYF-4)', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    // My Financial Compass requires a signed-in session; seed one so these
+    // flows exercise the app instead of the login gate.
+    seedAuthSession()
+  })
   afterEach(() => localStorage.clear())
 
   /**

@@ -4,6 +4,7 @@ import type { Category } from '../../../features/categories/types'
 import { formatDate } from '../../../lib/dates'
 import { formatSignedMoney } from '../../../lib/money'
 import { translate, type UIKey } from '../../../lib/i18n'
+import { useAppCurrency } from '../../auth/state/AuthContext'
 
 export interface RecentTransactionsProps {
   transactions: readonly Transaction[]
@@ -28,6 +29,7 @@ export function RecentTransactions({
     categories.map((c) => [c.id, c.name]),
   )
   const t = (key: UIKey) => translate(locale, key)
+  const currency = useAppCurrency()
 
   if (transactions.length === 0) {
     return <p className="text-muted mt-0">{emptyText}</p>
@@ -58,7 +60,7 @@ export function RecentTransactions({
                     item.type === 'income' ? 'text-income' : 'text-expense'
                   }
                 >
-                  {formatSignedMoney(item.amount, locale)}
+                  {formatSignedMoney(item.amount, locale, currency)}
                 </span>
               </td>
             </tr>

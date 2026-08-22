@@ -2,11 +2,17 @@ import type { FormEvent } from 'react'
 import { Page } from '../components/Page'
 import { SelectField } from '../components/FormField'
 import { useAppState } from '../state/AppState'
+import { ProfileForm } from '../features/auth/components/ProfileForm'
+import { SecuritySection } from '../features/auth/components/SecuritySection'
+import { DangerZone } from '../features/auth/components/DangerZone'
+import { Avatar } from '../features/auth/components/Avatar'
+import { useAuth } from '../features/auth/state/AuthContext'
 import { formatDate, type Locale } from '../lib/dates'
 import { translate, type UIKey } from '../lib/i18n'
 
 export default function SettingsPage() {
   const { locale, setLocale } = useAppState()
+  const { user } = useAuth()
   const t = (key: UIKey) => translate(locale, key)
 
   function onSave(event: FormEvent<HTMLFormElement>) {
@@ -18,6 +24,38 @@ export default function SettingsPage() {
   return (
     <Page title="Settings">
       <div className="stack">
+        <div className="panel">
+          <h2>Settings</h2>
+          {user && <Avatar name={user.name} color={user.avatar} size="lg" />}
+          <p className="text-muted">
+            {user?.email} · {user?.currency}
+          </p>
+        </div>
+
+        <div className="panel">
+          <h2>{t('settings.profileTitle')}</h2>
+          <p className="text-note">{t('profile.description')}</p>
+          <div className="settings-section">
+            <ProfileForm locale={locale} />
+          </div>
+        </div>
+
+        <div className="panel">
+          <h2>{t('settings.securityTitle')}</h2>
+          <p className="text-note">{t('security.subtitle')}</p>
+          <div className="settings-section">
+            <SecuritySection locale={locale} />
+          </div>
+        </div>
+
+        <div className="panel">
+          <h2>{t('settings.accountTitle')}</h2>
+          <p className="text-note">{t('account.subtitle')}</p>
+          <div className="settings-section">
+            <DangerZone locale={locale} />
+          </div>
+        </div>
+
         <div className="panel">
           <h2>Preferences</h2>
           <form onSubmit={onSave}>

@@ -1,0 +1,263 @@
+/* Auth feature styles — shares design tokens from index.css. */
+
+/* AUTH SCREEN (guest) ------------------------------------------------------ */
+
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  background: var(--color-bg);
+}
+
+.auth-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(150deg, #0b3c4d 0%, #155e75 55%, #0f766e 100%);
+  color: var(--color-on-primary);
+}
+
+.auth-hero__inner {
+  max-width: 26rem;
+}
+
+.auth-hero__brand {
+  font-weight: 700;
+  font-size: 1rem;
+  margin: 0 0 1.25rem;
+  color: #a5f3fc;
+}
+
+.auth-hero h1 {
+  color: #ffffff;
+  font-size: 2rem;
+  line-height: 1.15;
+  margin-bottom: 0.75rem;
+}
+
+.auth-hero p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.auth-hero__items {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.auth-hero__items li::before {
+  content: '✓';
+  color: #a7f3d0;
+  margin-right: 0.5rem;
+  font-weight: 700;
+}
+
+.auth-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+}
+
+.auth-card__inner {
+  width: 100%;
+  max-width: 25rem;
+}
+
+.auth-card__inner h1 {
+  margin-bottom: 0.25rem;
+}
+
+.auth-card__subtitle {
+  margin: 0 0 1.25rem;
+  color: var(--color-text-muted);
+}
+
+.auth-link-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.5rem 0 0.25rem;
+}
+
+.auth-switch {
+  margin: 1.25rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.auth-switch a {
+  font-weight: 600;
+}
+
+.auth-alert {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.auth-success {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #15803d;
+  border-radius: var(--radius-md);
+  background: #dcfce7;
+  color: #14532d;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.auth-status p {
+  margin: 0 0 0.5rem;
+}
+
+.auth-demo {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.auth-demo__code {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  margin: 0.35rem 0 0;
+  color: var(--color-primary);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+@media (max-width: 860px) {
+  .auth-screen {
+    grid-template-columns: 1fr;
+  }
+  .auth-hero {
+    display: none;
+  }
+}
+
+/* AVATAR -------------------------------------------------------------------- */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.avatar--sm {
+  width: 28px;
+  height: 28px;
+  font-size: 0.72rem;
+}
+
+.avatar--md {
+  width: 40px;
+  height: 40px;
+  font-size: 1rem;
+}
+
+.avatar--lg {
+  width: 72px;
+  height: 72px;
+  font-size: 1.6rem;
+}
+
+.avatar-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.avatar-option {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.avatar-option--selected {
+  border-color: var(--color-focus);
+  outline: 2px solid var(--color-focus-soft);
+  outline-offset: 2px;
+}
+
+.avatar-option:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* HEADER: signed-in identity ------------------------------------------------ */
+
+.auth-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+}
+
+.auth-user__identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0.4rem;
+}
+
+.auth-user__identity:hover {
+  background: var(--color-surface-2);
+  color: var(--color-primary);
+}
+
+.auth-user__name {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-user__logout {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .auth-user__name {
+    display: none;
+  }
+}
+
+/* SETTINGS: danger zone -------------------------------------------------------- */
+
+.panel--danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.settings-section {
+  margin-top: 1rem;
+}

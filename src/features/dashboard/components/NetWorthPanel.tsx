@@ -2,6 +2,7 @@ import type { Locale } from '../../../lib/dates'
 import { formatMoney } from '../../../lib/money'
 import { translate, type UIKey } from '../../../lib/i18n'
 import type { NetWorth, NetWorthItem } from '../types/index'
+import { useAppCurrency } from '../../auth/state/AuthContext'
 
 export interface NetWorthPanelProps {
   worth: NetWorth
@@ -25,27 +26,28 @@ export function NetWorthPanel({
   noInvestmentsText,
 }: NetWorthPanelProps) {
   const t = (key: UIKey) => translate(locale, key)
+  const currency = useAppCurrency()
 
   return (
     <div className="networth">
       <dl className="networth__formula" aria-label={t('dash.netWorth')}>
         <div className="networth__term networth__term--liquid">
           <dt>{t('dash.liquid')}</dt>
-          <dd>{formatMoney(worth.liquidAssets, locale)}</dd>
+          <dd>{formatMoney(worth.liquidAssets, locale, currency)}</dd>
         </div>
         <span className="networth__op" aria-hidden="true">
           +
         </span>
         <div className="networth__term networth__term--investments">
           <dt>{t('dash.investmentsShort')}</dt>
-          <dd>{formatMoney(worth.investments, locale)}</dd>
+          <dd>{formatMoney(worth.investments, locale, currency)}</dd>
         </div>
         <span className="networth__op" aria-hidden="true">
           =
         </span>
         <div className="networth__term networth__term--total">
           <dt>{t('dash.netWorthEq')}</dt>
-          <dd>{formatMoney(worth.total, locale)}</dd>
+          <dd>{formatMoney(worth.total, locale, currency)}</dd>
         </div>
       </dl>
 
@@ -78,7 +80,7 @@ export function NetWorthPanel({
                     {item.primaryValue === null ? (
                       <span className="text-note">—</span>
                     ) : (
-                      formatMoney(item.primaryValue, locale)
+                      formatMoney(item.primaryValue, locale, currency)
                     )}
                   </td>
                 </tr>

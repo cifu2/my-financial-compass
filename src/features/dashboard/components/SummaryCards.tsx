@@ -2,6 +2,7 @@ import type { Locale } from '../../../lib/dates'
 import { formatMoney } from '../../../lib/money'
 import type { MonthComparison } from '../types/index'
 import { translate, type UIKey } from '../../../lib/i18n'
+import { useAppCurrency } from '../../auth/state/AuthContext'
 
 export interface SummaryMetric {
   key: 'income' | 'expenses' | 'cashFlow'
@@ -54,13 +55,14 @@ export interface SummaryCardsProps {
  * with its percentage change against the previous month.
  */
 export function SummaryCards({ month, metrics, locale }: SummaryCardsProps) {
+  const currency = useAppCurrency()
   return (
     <div className="summary-cards" aria-label={month}>
       {metrics.map((metric) => (
         <div key={metric.key} className="panel summary-card">
           <h2 className="summary-card__label">{metric.label}</h2>
           <p className="summary-card__value">
-            {formatMoney(metric.value, locale)}
+            {formatMoney(metric.value, locale, currency)}
           </p>
           {metric.comparison && (
             <DeltaBadge

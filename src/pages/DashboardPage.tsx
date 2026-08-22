@@ -25,9 +25,11 @@ import {
   summarizeMonth,
 } from '../features/dashboard/services/dashboard'
 import { getRates } from '../features/dashboard/services/currency'
+import { useAppCurrency } from '../features/auth/state/AuthContext'
 
 export default function DashboardPage() {
   const { locale, store, loadDemo } = useAppState()
+  const primaryCurrency = useAppCurrency()
   const t = useCallback((key: UIKey) => translate(locale, key), [locale])
 
   const [demoLoading, setDemoLoading] = useState(false)
@@ -108,12 +110,12 @@ export default function DashboardPage() {
 
   const rates = useMemo(() => getRates(), [])
   const worth = useMemo(
-    () => netWorth(transactions, investments, rates.rates),
-    [transactions, investments, rates],
+    () => netWorth(transactions, investments, rates.rates, primaryCurrency),
+    [transactions, investments, rates, primaryCurrency],
   )
   const worthItems = useMemo(
-    () => netWorthItems(investments, rates.rates),
-    [investments, rates],
+    () => netWorthItems(investments, rates.rates, primaryCurrency),
+    [investments, rates, primaryCurrency],
   )
 
   const historyRows: MonthlyHistoryRow[] = useMemo(

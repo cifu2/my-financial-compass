@@ -3,6 +3,7 @@ import { act, render, screen } from '@testing-library/react'
 import { LoadingSpinner } from './LoadingSpinner'
 import { Skeleton, SkeletonText, SkeletonTable } from './Skeleton'
 import { DashboardSkeleton } from './DashboardSkeleton'
+import { seedAuthSession } from '../test/authSeed'
 import App from '../App'
 
 describe('LoadingSpinner', () => {
@@ -78,6 +79,7 @@ describe('App boot skeleton (MYF-17)', () => {
 
   it('shows a skeleton while the store hydrates, then the dashboard', () => {
     vi.useFakeTimers()
+    seedAuthSession()
     window.location.hash = '#/'
     render(<App />)
 
