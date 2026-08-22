@@ -6,7 +6,7 @@ const MESSAGES: Record<Locale, Record<SplitErrorCode, string>> = {
     'no-participants': 'Selecciona al menos un participante.',
     'invalid-input': 'Introduce un valor válido en cada participante.',
     'percentages-sum': 'Los porcentajes deben sumar 100%.',
-    'amounts-sum': 'La suma de los importes debe cuadrar con el total del gasto.',
+    'amounts-sum': 'Los importes deben sumar el total del gasto.',
   },
   en: {
     'no-participants': 'Pick at least one participant.',

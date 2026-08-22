@@ -4,6 +4,15 @@
 
 El proyecto está operativo con **build limpio, tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), el **modelo multiusuario con grupos** (HU-0.4/0.8/0.9, MYF-19..27) y el **sistema de permisos por rol** (HU-0.10, MYF-28), con persistencia, loading states y error boundary global.
 
+## ✅ División de gastos y balances de deudas (HU-0.7, MYF-27 COMPLETADO)
+
+- **Modelo**: `features/splits` — `ExpenseSplit` (transactionId, groupId, paidBy, method, shares[]) y `Settlement` (groupId, from, to, amount, date) persistidos en el snapshot financiero; `DebtBalance` es una vista derivada (nunca se almacena) para no quedar obsoleta al borrar gastos o liquidar.
+- **Reparto**: `computeSplit` (puro, en céntimos exactos) soporta **partes iguales, porcentajes, importes fijos y ponderaciones** con validación de que la suma cuadre con el total antes de guardar (`percentages-sum`, `amounts-sum`, …).
+- **Balances**: algoritmo de neteo per-member → simplificación "deudor mayor paga acreedor mayor" → filas tipo "Ana debe 45 € a Luis".
+- **UI**: selector de contexto + "Compartir este gasto" + `SplitEditor` en el formulario de transacciones; nueva ruta `/balances` con deudas pendientes, resumen por miembro, registro de liquidaciones e histórico (borrado con confirmación + undo).
+- **Tests**: 38 nuevos (splitCalculator, balances/settlements, storageService round-trip, flujo transacción-compartida y pantalla de balances) → suite total **351+**.
+- [ADR-0012](docs/adr/0012-splits-balances.md)
+
 ## ✅ Permisos por rol (HU-0.10, MYF-28 COMPLETADO)
 
 - **Matriz declarativa** en `features/groups/permissions.ts`: `ROLE_CAPABILITIES` + `can(role, capability)` cubre "ver datos", "crear/editar", "invitar/expulsar/cambiar roles" y "borrar grupo" exactamente como la HU.
