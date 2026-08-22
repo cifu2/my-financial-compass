@@ -47,6 +47,28 @@ El proyecto está operativo con **build limpio, 243 tests pasando, lint sin erro
 ### ✅ Módulo 5: Dashboard y Patrimonio Neto (COMPLETADO, MYF-10)
 - **DashboardPage**: resumen mensual, desglose de gastos, transacciones recientes, estado de presupuestos, patrimonio neto con conversión de divisas, historial mensual y datos de demostración
 
+## ✅ Inversiones compartidas con propiedad proporcional (MYF-24 COMPLETADO)
+
+- **Modelo de datos** (HU-0.9): `Investment.groupId?` (null = personal),
+  `createdBy?` y entidad `InvestmentOwnership` (investmentId, userId,
+  percentage) para registrar el % de propiedad por miembro del grupo.
+  Persistidos en el snapshot `v1` de forma backward-compatible.
+- **Servicio de cartera por contexto** (`features/investments/services/portfolio.ts`):
+  `ownershipPercentage` (100 % para personales), `holdingsForContext` (la vista
+  personal valora cada inversión de grupo al % del usuario; la vista de grupo
+  al total) y validación `isFullOwnership` (suma = 100).
+- **Selector de ámbito** en la página de inversiones: Personal + grupos del
+  usuario. Al crear una inversión de grupo se muestra un editor de % por
+  miembro con validación "suma 100" y mensajes de error accesibles.
+- **Patrimonio neto por contexto** (`contextNetWorth`/`contextNetWorthItems`):
+  el dashboard computa la vista personal proporcional (o la del grupo si hay
+  contexto de grupo activo compartido con presupuestos).
+- **Tests**: 11 nuevos del portfolio (filtros/sharing, validación), 5 de la
+  página (selector, creación personal y de grupo, rechazos de suma), 4 de
+  netWorth por contexto y 1 de integración (activo compartido en el panel de
+  patrimonio). Suite total: **286 tests**.
+- [ADR-0010](docs/adr/0010-group-investments.md)
+
 ## 🔄 Semana 1: Persistencia (EN CURSO)
 
 ### ✅ Persistencia con localStorage (MYF-11 COMPLETADO)

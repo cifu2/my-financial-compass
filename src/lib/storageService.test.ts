@@ -125,8 +125,9 @@ describe('storageService', () => {
         { investmentId: 'inv-1', userId: 'usr-ana', percentage: 60 },
         { investmentId: 'inv-1', userId: 'usr-jose', percentage: 40 },
       ]
-      const { version: _v, savedAt: _s, ...rest } = state
-      const error = savePersistedState(rest)
+      delete state.version
+      delete state.savedAt
+      const error = savePersistedState(state)
       expect(error).toBeNull()
       const loaded = loadPersistedState()!
       expect(loaded.investments[0].groupId).toBe('grp-hogar')

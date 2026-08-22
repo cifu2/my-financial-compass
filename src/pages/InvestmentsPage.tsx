@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Page } from '../components/Page'
 import { TextField, SelectField } from '../components/FormField'
@@ -76,30 +76,27 @@ export default function InvestmentsPage() {
   const [scope, setScope] = useState<string>('')
   const [shares, setShares] = useState<Record<string, string>>({})
 
-  // Default shares to an even split of the selected group's members.
-  useEffect(() => {
-    if (!scope) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+  // When the scope changes to a group we default to an even ownership split.
+  function selectScope(next: string) {
+    setScope(next)
+    if (!next) {
       setShares({})
       return
     }
-    const members = investmentGroupMembers(scope)
+    const members = investmentGroupMembers(next)
     if (members.length === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShares({})
       return
     }
-    const next: Record<string, string> = {}
+    const split: Record<string, string> = {}
     const plainShare = Math.floor(100 / members.length)
     const lastMemberIndex = members.length - 1
     for (const [index, member] of members.entries()) {
       const share = index === lastMemberIndex ? 100 - plainShare * lastMemberIndex : plainShare
-      next[member.userId] = String(share)
+      split[member.userId] = String(share)
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setShares(next)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope])
+    setShares(split)
+  }
 
   const initial: InvestmentForm = {
     name: '',
@@ -210,7 +207,7 @@ export default function InvestmentsPage() {
               label={t('investment.scope')}
               name="investmentScope"
               value={scope}
-              onChange={(e) => setScope(e.target.value)}
+              onChange={(e) => selectScope(e.target.value)}
               options={[
                 { value: '', label: t('investment.personal') },
                 ...groups.map((g) => ({
