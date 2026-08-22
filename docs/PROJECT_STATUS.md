@@ -50,6 +50,21 @@ El proyecto está operativo con **build limpio, 139+ tests pasando, lint sin err
 | ConfirmDialog + UndoToast | ✅ Funcional |
 | i18n (ES/EN) | ✅ Funcional |
 | Persistencia localStorage | ✅ Funcional (MYF-11) |
+| Build producción (`npm run build`) | ✅ Verificado (dist/ correcto) |
+| Config Vercel (`vercel.json`) | ✅ Preparado (MYF-14) |
+| Despliegue Vercel | ⛔ Bloqueado: falta token Vercel / repo GitHub |
+
+## 🔄 Semana 4: Despliegue (MYF-14 EN CURSO)
+
+### ✅ Preparación Vercel
+- `vercel.json`: preset vite, `outputDirectory: dist`, headers de caché, región `fra1`
+- `npm run build` verificado (typecheck + vite build correctos)
+- [ADR-0004](docs/adr/0004-vercel-deployment.md) + [runbook `docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+
+### ⛔ Bloqueador
+- No existe token de Vercel ni repo GitHub con token en el entorno.
+- Acción de desbloqueo: CEO/board debe aportar `VERCEL_TOKEN` (o GitHub repo +
+  token) como Paperclip secret al agente Founding Engineer.
 
 ## Próximos Pasos Recomendados
 
