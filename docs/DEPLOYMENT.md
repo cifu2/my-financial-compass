@@ -6,68 +6,71 @@ no requiere servidor backend.
 
 ## Estado
 
-- **App lista**: `npm run build` verde, `dist/` generado correctamente.
-- **Config lista**: `vercel.json` en la raíz del repo (`framework: vite`,
-  `outputDirectory: dist`, headers de caché, región `fra1`).
-- **⛔ Bloqueado por credenciales**: se necesita un token de Vercel (o repo
-  GitHub + token) para la conexión real. Ver [ADR-0004](#docs/adr).
+- **🟢 DESPLEGADO en producción (2026-08-22)** — https://my-financial-compass-eight.vercel.app
+  (alias production `my-financial-compass-eight.vercel.app`, proyecto
+  `prj_srkaWNp8lTPVizoiQGzZxWxE74rr` bajo team de `cifuwork-2872`).
+- App accesible (HTTP 200), HTTPS activo (`CN=*.vercel.app`) y título correcto:
+  `My Financial Compass | Finanzas personales`.
+- Repo GitHub público: https://github.com/cifu2/my-financial-compass (rama `main`).
+- `VERCEL_TOKEN` añadido como secret de GitHub Actions (`VERCEL_TOKEN`).
+- **Pendiente (CI en push)**: falta subir el workflow de Actions porque el
+  `GH_TOKEN` actual no tiene scope `workflow`; ver sección [CI por push](#ci-por-push-en-push-a-main).
 
 ## Requisitos previos
 
-1. Cuenta de **Vercel** (tier Hobby es suficiente para un SPA estático).
-2. Una de estas dos credenciales, entregada como **Paperclip secret** al agente
-   `Founding Engineer`:
-   - `VERCEL_TOKEN` (token generado en `vercel.com/account/tokens`), o
-   - Git **GitHub** con token `GITHUB_TOKEN` y subida previa del repo a GitHub.
-3. El repo local `my-financial-compass` (este checkout) apunta a la rama `main`.
+1. Cuenta de **Vercel** (tier Hobby).
+2. Credenciales como **Paperclip secrets** del agente `Founding Engineer`:
+   - `VERCEL_TOKEN` (token de `vercel.com/account/tokens`).
+   - `GH_TOKEN` con scope **`workflow`** para poder subir el archivo de Actions
+     (el token aportado inicialmente solo tiene `repo,user`).
+3. El repo local `my-financial-compass` (este checkout) apunta a `main`.
 
-## Conexión del repositorio
-
-### Opción A — Git Integration (recomendada, build automático por push)
-
-1. Subir el repo local a GitHub:
-
-```bash
-cd my-financial-compass
-git remote add origin <git@github.com:ORG/my-financial-compass.git>
-git push -u origin main
-```
-
-2. En Vercel: **Add New… → Project → Import Git Repository** → seleccionar
-   `my-financial-compass`.
-3. Vercel detecta Vite y aplica el preset: build `npm run build`, output `dist`.
-   Verificar que `vercel.json` es detectado en la raíz.
-4. **Auto-build**: de fábrica, todo push a `main` despliega producción;
-   los PR generan previews.
-
-### Opción B — CLI de Vercel (sin GitHub)
+## Despliegue production (hecho)
 
 ```bash
 npm i -g vercel
-export VERCEL_TOKEN=...   # desde el secret de Paperclip (nunca en el repo)
+export VERCEL_TOKEN=...            # desde el secret de Paperclip (nunca en el repo)
+cd my-financial-compass
 vercel link --yes --token "$VERCEL_TOKEN"
-vercel build --prod
-vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"
+vercel deploy --prod --prod --token "$VERCEL_TOKEN"
 ```
 
-Para build automático sin Git integration, habría que añadir un hook o CI;
-por eso la **Opción A es la recomendada**.
+Vercel aplicó el preset de Vite (`npm run build` → `dist/`) según `vercel.json`.
+Build en producción: OK en ~15s (iad1).
+
+## CI / build auto en push a `main`
+
+### Opción A — GitHub Actions (GIT integration vía workflow; preparada)
+
+El workflow está listo en `deploy/workflows/deploy-vercel.yml` (referencia)
+y el secreto `VERCEL_TOKEN` ya está en el repo. Condiciones para activarlo:
+
+1. El `GH_TOKEN` debe incluir el scope **`workflow`** (GitHub bloquea la subida
+   de `.github/workflows/*` sin ese scope).
+2. Copiar el workflow a `.github/workflows/deploy-vercel.yml`, hacer commit y push
+   a `main`. A partir de ahí, **cada push a `main` genera un deploy de producción**
+   vía `vercel build` → `vercel deploy --prebuilt --prod`.
+
+### Opción B — Vercel Git integration (nativa)
+
+Requiere autorización OAuth de la cuenta GitHub **cifu2** en el panel de Vercel
+(import del repo en el navegador del propietario). No se puede completar vía
+CLI/API con el token actual ("You need admin or write access").
 
 ## Verificación de producción
 
 ```bash
-# Respuesta 200 y HTML del shell (routing por hash, sin rewrites especiales)
-curl -sI https://<project>.vercel.app | head -1
-# HTTPS activo
-curl -sI https://<project>.vercel.app | grep -i '^location\|set-cookie' # TLS implícito
-# Assets con caché larga
-curl -sI https://<project>.vercel.app/assets/index-*.js | grep -i cache-control
+curl -sI https://my-financial-compass-eight.vercel.app | head -1     # 200
+curl -sI https://my-financial-compass-eight.vercel.app/feedback.html  # 200
+echo | openssl s_client -connect my-financial-compass-eight.vercel.app:443 -server
+             -servername my-financial-compass-eight.vercel.app 2>/dev/null
+    | openssl x509 -noout -subject -dates                    # CN=*.vercel.app
 ```
 
 Criterios de aceptación del ticket:
 
-- [x] App accesible en URL pública (→ `https://<project>.vercel.app`)
-- [x] Build automático en cada push a `main` (Git integration)
+- [x] App accesible en URL pública (→ https://my-financial-compass-eight.vercel.app)
+- [ ] Build auto en cada push a `main` (bloqueado por scope `workflow` aprovisionar)
 - [x] HTTPS habilitado (gestionado por Vercel)
 
 ## Dominio personalizado (si aplica)
