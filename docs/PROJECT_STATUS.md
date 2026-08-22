@@ -2,7 +2,7 @@
 
 ## Resumen Ejecutivo
 
-El proyecto está operativo con **build limpio, 139+ tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard). **Semana 1 del roadmap en curso: persistencia con localStorage (MYF-11).**
+El proyecto está operativo con **build limpio, 185+ tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) con persistencia, loading states y error boundary global.
 
 ## Estado por Módulo
 
@@ -50,9 +50,25 @@ El proyecto está operativo con **build limpio, 139+ tests pasando, lint sin err
 | ConfirmDialog + UndoToast | ✅ Funcional |
 | i18n (ES/EN) | ✅ Funcional |
 | Persistencia localStorage | ✅ Funcional (MYF-11) |
+| Loading states + skeletons | ✅ Funcional (MYF-13) |
+| Error boundary global + logging | ✅ Funcional (MYF-18, ADR-0005) |
 | Build producción (`npm run build`) | ✅ Verificado (dist/ correcto) |
 | Config Vercel (`vercel.json`) | ✅ Preparado (MYF-14) |
 | Despliegue Vercel | ⛔ Bloqueado: falta token Vercel / repo GitHub |
+
+## ✅ Resiliencia y recuperación de errores (MYF-18 COMPLETADO)
+
+- **ErrorBoundary global** envuelve todo el contenido: un fallo de render/ciclo
+  de vida en cualquier página muestra pantalla de error amigable en vez de
+  romper la app.
+- **Pantalla de recuperación**: `role="alert"`, mensaje claro, ID del error,
+  opciones **Reintentar** (remonta el subárbol), **Reiniciar la aplicación**
+  (reload) y **Copiar informe del error** (clipboard con feedback).
+- **`src/lib/errorReporting.ts`**: punto único de captura (`reportError`),
+  log acotado en memoria, suscriptores (`onError`) — gancho preparado para
+  Sentry — y handlers globales (`window.onerror` + `unhandledrejection`).
+- **Tests**: 17 nuevos (`ErrorBoundary.test.tsx`, `ErrorScreen.test.tsx`).
+- [ADR-0005](docs/adr/0005-error-boundary.md)
 
 ## 🔄 Semana 4: Despliegue (MYF-14 EN CURSO)
 
@@ -68,11 +84,10 @@ El proyecto está operativo con **build limpio, 139+ tests pasando, lint sin err
 
 ## Próximos Pasos Recomendados
 
-1. **MYF-12**: Feedback visual de guardado (toast/indicador)
-2. **MYF-13**: Manejo de errores de storage en UI (exportar, resetear)
-3. **MYF-14**: Tests de integración módulo a módulo
-4. **MYF-17**: Loading states y skeleton screens
-5. **MYF-18**: Error boundary global
+1. **MYF-14**: Tests de integración módulo a módulo (en curso)
+2. **MYF-23**: Optimización de bundle y performance
+3. **MYF-24**: Documentación para beta testers
+4. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial
 
 ## Comando Útil
 

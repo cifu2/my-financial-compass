@@ -48,9 +48,14 @@ src/
 ├── components/            # Componentes de UI transversales
 │   ├── Breadcrumb.tsx     # Indicador de sección actual
 │   ├── ConfirmDialog.tsx  # Diálogo de confirmación destructiva
+│   ├── DashboardSkeleton.tsx # Esqueleto de carga del dashboard
+│   ├── ErrorBoundary.tsx  # Error boundary global
+│   ├── ErrorScreen.tsx    # Pantalla de error amigable + recuperación
 │   ├── FormField.tsx      # Inputs con label visible y error
+│   ├── LoadingSpinner.tsx # Spinner accesible
 │   ├── MainNav.tsx        # Navegación principal (todas las pantallas)
 │   ├── Page.tsx           # Scaffolding de sección con heading
+│   ├── Skeleton.tsx       # Placeholders de carga
 │   └── UndoToast.tsx      # Toast de "Deshacer" tras eliminar
 ├── features/              # Los cinco módulos (uno por carpeta)
 │   ├── transactions/      # Módulo 1
@@ -72,6 +77,7 @@ src/
 │   └── useUndo.ts         # Historial de undo (con OC template)
 ├── lib/
 │   ├── dates.ts           # Parseo/formato de fechas DD/MM/AAAA (es)
+│   ├── errorReporting.ts  # Captura/logging de errores (gancho Sentry)
 │   ├── i18n.ts            # Traducciones es/en
 │   └── validation.ts      # Validadores client-side (tests)
 ├── pages/                 # Rutas de nivel superior
@@ -85,7 +91,7 @@ src/
 │   └── AppState.tsx       # Contexto global (store + locale)
 ├── test/
 │   └── setup.ts           # Configuración de jsdom + jest-dom
-├── App.tsx                # Shell: header, nav, breadcrumb, rutas
+├── App.tsx                # Shell: header, nav, breadcrumb, rutas + error boundary
 ├── index.css              # Tokens y estilos base
 └── router.ts              # Enrutador hash-based
 ```
@@ -96,6 +102,9 @@ src/
 - Las fechas se muestran en formato local (`DD/MM/AAAA` en español).
 - Toda acción destructiva pasa por `ConfirmDialog` y ofrece `UndoToast` (5–10 s).
 - Todos los formularios son navegables por teclado, con labels visibles.
+- Los errores se capturan globalmente (`ErrorBoundary` + `errorReporting`) y la
+  app ofrece recuperación (reintentar / reiniciar); los detalles se copian y
+  reportan sin exponer datos personales.
 
 ## Decisiones arquitectónicas
 
