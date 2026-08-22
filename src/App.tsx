@@ -1,27 +1,35 @@
-import { type ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { AppStateProvider, useAppState } from './state/AppState'
 import { MainNav } from './components/MainNav'
 import { Breadcrumb } from './components/Breadcrumb'
 import { DashboardSkeleton } from './components/DashboardSkeleton'
+import { PageLoader } from './components/PageLoader'
 import { ErrorBoundary, type ErrorBoundaryStrings } from './components/ErrorBoundary'
 import { useRoute, type Route } from './router'
 import { translate, type UIKey } from './lib/i18n'
 import type { Locale } from './lib/dates'
 import DashboardPage from './pages/DashboardPage'
-import TransactionsPage from './pages/TransactionsPage'
-import RecurringPage from './pages/RecurringPage'
-import BudgetsPage from './pages/BudgetsPage'
-import InvestmentsPage from './pages/InvestmentsPage'
-import SettingsPage from './pages/SettingsPage'
 import './index.css'
 
+// Route-level code splitting: every secondary page lives in its own chunk
+// (loaded on demand) so the initial route only ships the shell + dashboard.
+const TransactionsPage = lazy(() => import('./pages/TransactionsPage'))
+const RecurringPage = lazy(() => import('./pages/RecurringPage'))
+const BudgetsPage = lazy(() => import('./pages/BudgetsPage'))
+const InvestmentsPage = lazy(() => import('./pages/InvestmentsPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+
 function CurrentPage({ route }: { route: Route }) {
-  if (route.key === 'transactions') return <TransactionsPage />
-  if (route.key === 'recurring') return <RecurringPage />
-  if (route.key === 'budgets') return <BudgetsPage />
-  if (route.key === 'investments') return <InvestmentsPage />
-  if (route.key === 'settings') return <SettingsPage />
-  return <DashboardPage />
+  return (
+    <>
+      {route.key === 'transactions' ? <TransactionsPage /> : null}
+      {route.key === 'recurring' ? <RecurringPage /> : null}
+      {route.key === 'budgets' ? <BudgetsPage /> : null}
+      {route.key === 'investments' ? <InvestmentsPage /> : null}
+      {route.key === 'settings' ? <SettingsPage /> : null}
+      {route.key === 'dashboard' ? <DashboardPage /> : null}
+    </>
+  )
 }
 
 function errorBoundaryStrings(locale: Locale): ErrorBoundaryStrings {
@@ -59,7 +67,9 @@ function AppShell() {
         {isBooting ? (
           <DashboardSkeleton label={translate(locale, 'loading.dashboard')} />
         ) : (
-          <CurrentPage route={route} />
+          <Suspense fallback={<PageLoader label={translate(locale, 'loading.pleaseWait')} />}>
+            <CurrentPage route={route} />
+          </Suspense>
         )}
       </main>
     </div>
