@@ -43,7 +43,7 @@ El proyecto está operativo con **build limpio, 185+ tests pasando, lint sin err
 |------------|--------|
 | React + Vite + TypeScript | ✅ Funcional |
 | ESLint | ✅ Sin errores |
-| Vitest + Testing Library | ✅ 141 tests |
+| Vitest + Testing Library | ✅ 172 tests (22 de integración) |
 | Navegación hash-based | ✅ Funcional |
 | State Management (Context) | ✅ Funcional |
 | Formularios con validación | ✅ Funcional |
@@ -70,12 +70,23 @@ El proyecto está operativo con **build limpio, 185+ tests pasando, lint sin err
 - **Tests**: 17 nuevos (`ErrorBoundary.test.tsx`, `ErrorScreen.test.tsx`).
 - [ADR-0005](docs/adr/0005-error-boundary.md)
 
-## 🔄 Semana 4: Despliegue (MYF-14 EN CURSO)
+## ✅ Semana 4: Despliegue (MYF-14)
 
 ### ✅ Preparación Vercel
 - `vercel.json`: preset vite, `outputDirectory: dist`, headers de caché, región `fra1`
 - `npm run build` verificado (typecheck + vite build correctos)
 - [ADR-0004](docs/adr/0004-vercel-deployment.md) + [runbook `docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+
+### ✅ Tests de integración módulo a módulo (MYF-14)
+- **`src/test/ModuleIntegration.test.tsx`**: 5 tests end-to-end que cruzan módulos
+  conduciendo la UI real (`<App />` completo: router hash + `AppStateProvider` +
+  boot skeleton) con queries de Testing Library:
+  1. Transacción → dashboard (recientes + KPI de gastos) → snapshot de presupuesto
+  2. Recurrente → generación automática de la ocurrencia → ledger de transacciones → dashboard
+  3. Inversión → panel de patrimonio neto
+  4. Presupuesto creado por UI → gasto por transacciones → barras de progreso
+  5. Ingreso → resumen mensual + patrimonio neto
+- Suite completa: **172 tests** (`npm run test:run`), `tsc -b` y `eslint` limpios.
 
 ### ⛔ Bloqueador
 - No existe token de Vercel ni repo GitHub con token en el entorno.
@@ -84,10 +95,9 @@ El proyecto está operativo con **build limpio, 185+ tests pasando, lint sin err
 
 ## Próximos Pasos Recomendados
 
-1. **MYF-14**: Tests de integración módulo a módulo (en curso)
-2. **MYF-23**: Optimización de bundle y performance
-3. **MYF-24**: Documentación para beta testers
-4. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial
+1. **MYF-23**: Optimización de bundle y performance
+2. **MYF-24**: Documentación para beta testers
+3. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial
 
 ## Comando Útil
 
