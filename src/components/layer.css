@@ -1,0 +1,111 @@
+/* Confirmation dialog + undo toast -- uses the shared design tokens. */
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.5);
+  padding: 1rem;
+}
+
+.confirm-dialog {
+  max-width: 420px;
+  width: 100%;
+  background: var(--color-bg, #fff);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-md);
+}
+
+.confirm-dialog-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  color: var(--color-text);
+}
+
+.confirm-dialog-message {
+  margin: 0 0 1.25rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.undo-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #111827;
+  color: #f9fafb;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  max-width: min(90vw, 560px);
+}
+
+.undo-toast-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.undo-toast-buttons {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.undo-toast .btn {
+  padding: 0.35rem 0.75rem;
+}
+
+.undo-toast--success {
+  background: #065f46;
+  color: #f0fdf4;
+}
+
+.undo-toast--success .btn--secondary {
+  background: #34d399;
+  color: #052e16;
+}
+
+.text-income {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.text-expense {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.category-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
