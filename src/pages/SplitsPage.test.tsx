@@ -1,30 +1,30 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
-import App from '../App'
-import { savePersistedState } from '../lib/storageService'
-import { seedAuthSession } from '../test/authSeed'
+import { AppStateProvider } from '../state/AppState'
+import { AuthProvider } from '../features/auth/state/AuthContext'
+import TransactionsPage from '../pages/TransactionsPage'
+import { savePersistedState, STORAGE_KEY } from '../lib/storageService'
 import { persistGroupSnapshot, clearGroupSnapshot } from '../features/groups/services/groupStore'
 import { seedGroupSnapshot } from '../features/groups/data/seeds'
 import { PREDEFINED_CATEGORIES } from '../features/categories/data/predefined'
-import { STORAGE_KEY } from '../lib/storageService'
 import { buildSeededSnapshot } from '../features/auth/services/authService'
 import { AUTH_STORAGE_KEY } from '../features/auth/services/authStore'
 
 /**
- * Group expense split flow (HU-0.7 / MYF-27), exercised through the full app
- * so the persisted localStorage contract (expenseSplits) is asserted.
+ * Group expense split flow (HU-0.7 / MYF-27). Renders TransactionsPage
+ * isolated (with the real AppState boot → persistence path) so it asserts the
+ * persisted localStorage contract without depending on the shell.
  */
 
 const USER_ID = 'usr-ana'
 
 function seedAuthAsMember() {
-  const snapshot = buildSeededSnapshot({
-    id: USER_ID,
-    email: 'ana@example.com',
-    name: 'Ana',
-    password: 'pass1234',
-  })
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(snapshot))
+  localStorage.setItem(
+    AUTH_STORAGE_KEY,
+    JSON.stringify(
+      buildSeededSnapshot({ id: USER_ID, email: 'ana@example.com', name: 'Ana', password: 'pass1234' }),
+    ),
+  )
 }
 
 function seedStore() {
@@ -39,13 +39,25 @@ function seedStore() {
   })
 }
 
-async function renderAt(hash: string) {
-  window.location.hash = hash
-  render(<App />)
-  await screen.findByLabelText(/Descripción|Description/)
+async function renderPage() {
+  render(
+    <AuthProvider>
+      <AppStateProvider bootDelayMs={0}>
+        <TransactionsPage />
+      </AppStateProvider>
+    </AuthProvider>,
+  )
+  const desc = await screen.findByLabelText(/Descripción|Description/, {}, { timeout: 8000 })
+  return desc.closest('form') as HTMLElement
 }
 
 function pickCategory(form: HTMLElement, name: string) {
+  const select = form.querySelector('select[name="categoryId"]') as HTMLSelectElement | null
+  if (select) {
+    const option = Array.from(select.options).find((o) => o.textContent === name)
+    if (option) fireEvent.change(select, { target: { value: option.value } })
+    return
+  }
   const combobox = within(form).getByRole('combobox', {
     name: /Categor/i,
   }) as HTMLInputElement
@@ -54,7 +66,7 @@ function pickCategory(form: HTMLElement, name: string) {
   fireEvent.keyDown(combobox, { key: 'Enter' })
 }
 
-describe('Shared expense split (HU-0.7 / MYF-27)', () => {
+describe('TransactionsPage shared expense split (HU-0.7 / MYF-27)', () => {
   beforeEach(() => {
     localStorage.clear()
     seedAuthAsMember()
@@ -66,16 +78,24 @@ describe('Shared expense split (HU-0.7 / MYF-27)', () => {
     clearGroupSnapshot()
   })
 
-  it('creates a shared expense split in equal parts and persists it', async () => {
-    await renderAt('#/transactions')
-    const form = Array.from(document.querySelectorAll('form'))[0] as HTMLElement
+  it('shows the balances link and the group context selector on the form', async () => {
+    await renderPage()
+    expect(await screen.findByRole('link', { name: /balances de deudas/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/Contexto/i)).toBeInTheDocument()
+  })
 
-    // Wait for auth boot so the group context appears, then select it.
-    await within(form).findByRole('option', { name: 'Hogar' })
+  it('creates a shared expense split in equal parts and persists it', async () => {
+    const form = await renderPage()
+
+    await waitFor(() => {
+      const option = Array.from(form.querySelectorAll('option')).find((o) => o.textContent === 'Hogar')
+      expect(option).toBeDefined()
+    })
     fireEvent.change(form.querySelector('select[name="groupId"]') as HTMLSelectElement, {
       target: { value: 'grp-hogar' },
     })
     const shareBox = form.querySelector('input[name="shared"]') as HTMLInputElement
+    expect(shareBox).toBeTruthy()
     fireEvent.click(shareBox)
     expect(await screen.findByText(/Reparto:/i)).toBeInTheDocument()
 
@@ -92,7 +112,6 @@ describe('Shared expense split (HU-0.7 / MYF-27)', () => {
 
     fireEvent.click(within(form).getByRole('button', { name: /Guardar|Save/ }))
 
-    // The full save persists the split entry (contract asserted in storage).
     await waitFor(() => {
       const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
       expect(persisted.expenseSplits).toHaveLength(1)
@@ -101,23 +120,25 @@ describe('Shared expense split (HU-0.7 / MYF-27)', () => {
     const split = stored.expenseSplits[0]
     expect(split.method).toBe('equal')
     expect(split.groupId).toBe('grp-hogar')
-    expect(split.paidBy).toBe('usr-ana')
+    expect(split.paidBy).toBe(USER_ID)
     const sum = split.shares.reduce((a: number, s: { amount: number }) => a + s.amount, 0)
     expect(sum).toBeCloseTo(45, 2)
   })
 
-  it('rejects a split whose amounts do not match the total', async () => {
-    await renderAt('#/transactions')
-    const form = Array.from(document.querySelectorAll('form'))[0] as HTMLElement
-
-    await within(form).findByRole('option', { name: 'Hogar' })
+  it('blocks saving while the split sum does not match the total', async () => {
+    const form = await renderPage()
+    await waitFor(() => {
+      const option = Array.from(form.querySelectorAll('option')).find((o) => o.textContent === 'Hogar')
+      expect(option).toBeDefined()
+    })
     fireEvent.change(form.querySelector('select[name="groupId"]') as HTMLSelectElement, {
       target: { value: 'grp-hogar' },
     })
-    fireEvent.click(form.querySelector('input[name="shared"]') as HTMLInputElement)
+    const shareBox = form.querySelector('input[name="shared"]') as HTMLInputElement
+    fireEvent.click(shareBox)
     await screen.findByText(/Reparto:/i)
 
-    fireEvent.change(within(form).getByLabelText(/Descripcion|Description/), {
+    fireEvent.change(within(form).getByLabelText(/Descripción|Description/), {
       target: { value: 'Cena parcial' },
     })
     fireEvent.change(within(form).getByLabelText(/Importe|Amount/), {
@@ -139,12 +160,8 @@ describe('Shared expense split (HU-0.7 / MYF-27)', () => {
 
     fireEvent.click(within(form).getByRole('button', { name: /Guardar|Save/ }))
     expect(await screen.findByText(/Los importes deben sumar/i)).toBeInTheDocument()
-    const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
-    expect(persisted.expenseSplits ?? []).toHaveLength(0)
-  })
-
-  it('shows the balances link from the transactions page', async () => {
-    await renderAt('#/transactions')
-    expect(await screen.findByRole('link', { name: /balances de deudas/i })).toBeInTheDocument()
+    // Nothing gets persisted.
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
+    expect(stored.expenseSplits ?? []).toHaveLength(0)
   })
 })

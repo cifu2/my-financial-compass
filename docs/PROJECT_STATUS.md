@@ -4,6 +4,15 @@
 
 El proyecto está operativo con **build limpio, tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), el **modelo multiusuario con grupos** (HU-0.4/0.8/0.9, MYF-19..27) y el **sistema de permisos por rol** (HU-0.10, MYF-28), con persistencia, loading states y error boundary global.
 
+## ✅ Actividad del grupo y borrado con doble confirmación (HU-0.11/HU-0.12, MYF-29 COMPLETADO)
+
+- **Auditoría `GroupActivity`** (`groupId`, `userId`, `action`, `details`, `timestamp`) persistida en el snapshot de grupos (retrocompatible, `version:1`), append-only con límite por grupo y orden cronológico descendente.
+- **Registro automático** en cada acción relevante: transacciones de grupo (alta/borrado), reparto, liquidaciones, inversiones, presupuestos, recurrentes, alta/baja de miembros, roles, invitaciones y operaciones del grupo.
+- **Pantalla de actividad** `/grupos/:id/actividad` con filtros por miembro y tipo de acción, frases i18n ("Luis añadió Supermercado 82,00 €", "Ana liquidó 45,00 € a José"); enlazada desde Balances y desde Configuración → Grupos.
+- **Borrado con doble confirmación**: diálogo en dos pasos (archivar vs. eliminar + aviso a los miembros; luego teclear el nombre del grupo). `archiveGroup` conserva datos y actividad (`archivedAt`), `restoreGroup` lo reactiva; `deleteGroup` permite a un admin borrar un grupo con miembros y el fronted purga los datos financieros del grupo (`removeGroupData`).
+- **Tests**: servicio de actividad, mensajes i18n, pantalla de actividad con filtros y panel de grupos con doble confirmación → suite total **367** en verde.
+- [ADR-0013](docs/adr/0013-group-activity-deletion.md)
+
 ## ✅ División de gastos y balances de deudas (HU-0.7, MYF-27 COMPLETADO)
 
 - **Modelo**: `features/splits` — `ExpenseSplit` (transactionId, groupId, paidBy, method, shares[]) y `Settlement` (groupId, from, to, amount, date) persistidos en el snapshot financiero; `DebtBalance` es una vista derivada (nunca se almacena) para no quedar obsoleta al borrar gastos o liquidar.
