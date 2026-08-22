@@ -7,9 +7,18 @@ describe('App integration (MYF-4)', () => {
   beforeEach(() => localStorage.clear())
   afterEach(() => localStorage.clear())
 
-  it('renders the category management screen with predefined categories', () => {
-    window.location.hash = '#/transactions'
+  /**
+   * Boot is asynchronous (skeleton first, then hydrated content), so every
+   * assertion on app content goes through async queries.
+   */
+  async function renderApp() {
     render(<App />)
+    await screen.findByLabelText(/Descripción|Description/)
+  }
+
+  it('renders the category management screen with predefined categories', async () => {
+    window.location.hash = '#/transactions'
+    await renderApp()
     // Breadcrumb + section indicator for Transactions
     expect(
       screen.getByText(/Section: Transactions|Sección: Transacciones/i),
@@ -25,9 +34,9 @@ describe('App integration (MYF-4)', () => {
     expect(within(managerPanel).getByText('Nómina')).toBeInTheDocument()
   })
 
-  it('creates a transaction using a predefined category via the app', () => {
+  it('creates a transaction using a predefined category via the app', async () => {
     window.location.hash = '#/transactions'
-    render(<App />)
+    await renderApp()
 
     // The transaction form is the first form on the page.
     const txForm = Array.from(document.querySelectorAll('form'))[0] as HTMLElement
@@ -62,9 +71,10 @@ describe('App integration (MYF-4)', () => {
     expect(screen.getByRole('cell', { name: /Pan de molde/ })).toBeInTheDocument()
   })
 
-  it('persists transactions across a refresh (unmount + rerender)', () => {
+  it('persists transactions across a refresh (unmount + rerender)', async () => {
     window.location.hash = '#/transactions'
     const { unmount } = render(<App />)
+    await screen.findByLabelText(/Descripción|Description/)
 
     const txForm = Array.from(document.querySelectorAll('form'))[0] as HTMLElement
     fireEvent.change(within(txForm).getByLabelText(/Descripción|Description/), {
@@ -102,11 +112,11 @@ describe('App integration (MYF-4)', () => {
     unmount()
     render(<App />)
     expect(
-      screen.getAllByRole('cell', { name: /Café de especialidad/ }).length,
-    ).toBeGreaterThan(0)
+      await screen.findAllByRole('cell', { name: /Café de especialidad/ }),
+    ).toHaveLength(1)
   })
 
-  it('loads a persisted snapshot when localStorage already has data', () => {
+  it('loads a persisted snapshot when localStorage already has data', async () => {
     savePersistedState({
       locale: 'es',
       transactions: [
@@ -128,7 +138,7 @@ describe('App integration (MYF-4)', () => {
     window.location.hash = '#/transactions'
     render(<App />)
     expect(
-      screen.getAllByRole('cell', { name: /Gasto del semestre/ }).length,
-    ).toBeGreaterThan(0)
+      await screen.findAllByRole('cell', { name: /Gasto del semestre/ }),
+    ).not.toHaveLength(0)
   })
 })

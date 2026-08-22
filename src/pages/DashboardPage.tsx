@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Page } from '../components/Page'
 import { SelectField } from '../components/FormField'
-import { useAppState } from '../state/AppState'
+import { LoadingSpinner } from '../components/LoadingSpinner'
+import { useAppState, DEMO_LOAD_DELAY_MS } from '../state/AppState'
 import { monthLabel } from '../lib/dates'
 import { translate, type UIKey } from '../lib/i18n'
 import { buildBudgetRows } from '../features/budgeting/services/budgetCalculator'
@@ -28,6 +29,17 @@ import { getRates } from '../features/dashboard/services/currency'
 export default function DashboardPage() {
   const { locale, store, loadDemo } = useAppState()
   const t = useCallback((key: UIKey) => translate(locale, key), [locale])
+
+  const [demoLoading, setDemoLoading] = useState(false)
+
+  const handleLoadDemo = useCallback(async () => {
+    if (demoLoading) return
+    setDemoLoading(true)
+    // Yield so the spinner paints before swapping in the dataset.
+    await new Promise((resolve) => window.setTimeout(resolve, DEMO_LOAD_DELAY_MS))
+    loadDemo()
+    setDemoLoading(false)
+  }, [demoLoading, loadDemo])
 
   const { transactions, categories, investments, budgets } = store
 
@@ -129,9 +141,12 @@ export default function DashboardPage() {
             <button
               type="button"
               className="btn btn--primary"
-              onClick={loadDemo}
+              onClick={handleLoadDemo}
+              disabled={demoLoading}
+              aria-busy={demoLoading}
             >
-              {t('dash.loadDemo')}
+              {demoLoading && <LoadingSpinner size="sm" label={t('loading.demo')} />}
+              {demoLoading ? t('loading.demo') : t('dash.loadDemo')}
             </button>
           </div>
         )}

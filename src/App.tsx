@@ -1,7 +1,9 @@
-import { AppStateProvider } from './state/AppState'
+import { AppStateProvider, useAppState } from './state/AppState'
 import { MainNav } from './components/MainNav'
 import { Breadcrumb } from './components/Breadcrumb'
-import { useRoute } from './router'
+import { DashboardSkeleton } from './components/DashboardSkeleton'
+import { useRoute, type Route } from './router'
+import { translate } from './lib/i18n'
 import DashboardPage from './pages/DashboardPage'
 import TransactionsPage from './pages/TransactionsPage'
 import RecurringPage from './pages/RecurringPage'
@@ -10,32 +12,48 @@ import InvestmentsPage from './pages/InvestmentsPage'
 import SettingsPage from './pages/SettingsPage'
 import './index.css'
 
-function App() {
+function CurrentPage({ route }: { route: Route }) {
+  if (route.key === 'transactions') return <TransactionsPage />
+  if (route.key === 'recurring') return <RecurringPage />
+  if (route.key === 'budgets') return <BudgetsPage />
+  if (route.key === 'investments') return <InvestmentsPage />
+  if (route.key === 'settings') return <SettingsPage />
+  return <DashboardPage />
+}
+
+function AppShell() {
   const { route, navigate } = useRoute()
+  const { locale, isBooting } = useAppState()
+
+  return (
+    <div className="app-shell">
+      <a className="skip-link" href="#content">
+        Skip to content
+      </a>
+      <header className="site-header">
+        <div className="site-header__inner">
+          <a className="brand" href="#/">
+            My Financial Compass
+          </a>
+          <MainNav current={route} onNavigate={navigate} />
+        </div>
+      </header>
+      <main className="app-main" id="content">
+        <Breadcrumb route={route} />
+        {isBooting ? (
+          <DashboardSkeleton label={translate(locale, 'loading.dashboard')} />
+        ) : (
+          <CurrentPage route={route} />
+        )}
+      </main>
+    </div>
+  )
+}
+
+function App() {
   return (
     <AppStateProvider>
-      <div className="app-shell">
-        <a className="skip-link" href="#content">
-          Skip to content
-        </a>
-        <header className="site-header">
-          <div className="site-header__inner">
-            <a className="brand" href="#/">
-              My Financial Compass
-            </a>
-            <MainNav current={route} onNavigate={navigate} />
-          </div>
-        </header>
-        <main className="app-main" id="content">
-          <Breadcrumb route={route} />
-          {route.key === 'dashboard' && <DashboardPage />}
-          {route.key === 'transactions' && <TransactionsPage />}
-          {route.key === 'recurring' && <RecurringPage />}
-          {route.key === 'budgets' && <BudgetsPage />}
-          {route.key === 'investments' && <InvestmentsPage />}
-          {route.key === 'settings' && <SettingsPage />}
-        </main>
-      </div>
+      <AppShell />
     </AppStateProvider>
   )
 }

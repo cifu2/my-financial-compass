@@ -3,6 +3,9 @@ import type { Locale } from './dates'
 const ui: Record<Locale, Record<string, string>> = {
   es: {
     'app.title': 'Brújula Financiera',
+    'loading.pleaseWait': 'Cargando…',
+    'loading.dashboard': 'Cargando el panel de control…',
+    'loading.demo': 'Cargando datos de demostración…',
     'form.save': 'Guardar',
     'form.cancel': 'Cancelar',
     'form.edit': 'Editar',
@@ -164,6 +167,9 @@ const ui: Record<Locale, Record<string, string>> = {
   },
   en: {
     'app.title': 'Financial Compass',
+    'loading.pleaseWait': 'Loading…',
+    'loading.dashboard': 'Loading dashboard…',
+    'loading.demo': 'Loading demo data…',
     'form.save': 'Save',
     'form.cancel': 'Cancel',
     'form.edit': 'Edit',

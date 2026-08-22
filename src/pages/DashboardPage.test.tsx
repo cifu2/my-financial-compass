@@ -98,21 +98,26 @@ describe('DashboardPage (MYF-10)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('loads demo data from the empty state', () => {
+  it('loads demo data from the empty state with loading feedback', async () => {
     const { container } = render(
       <AppStateProvider>
         <DashboardPage />
       </AppStateProvider>,
     )
-    const demoButton = screen.getByRole('button', {
+    const demoButton = await screen.findByRole('button', {
       name: /Cargar datos de demostración/,
     })
     expect(demoButton).toBeInTheDocument()
     fireEvent.click(demoButton)
-    // The demo store populates the panels: investments and budgets render
-    // and the empty-state prompt disappears.
+    // The async demo load shows a spinner with the loading label on the button.
+    const loadingButton = await screen.findByRole('button', {
+      name: /Cargando datos de demostración…/,
+    })
+    expect(loadingButton).toHaveAttribute('aria-busy', 'true')
+    // Once resolved, the demo store populates the panels, the empty-state
+    // prompt disappears and the dashboard renders the investment and net worth.
+    await screen.findByText(/Fondo global/)
     expect(screen.queryByRole('button', { name: /Cargar datos de demostración/ })).toBeNull()
-    expect(container.textContent ?? '').toMatch(/Fondo global/)
     expect(container.textContent ?? '').toMatch(/Patrimonio neto/)
   })
 })

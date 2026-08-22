@@ -61,6 +61,12 @@ export interface AppState {
   locale: Locale
   setLocale: (locale: Locale) => void
   store: Storage
+  /**
+   * True while persisted state is being hydrated at boot. While booting, the
+   * app shell renders a skeleton screen instead of eager section content so
+   * the user sees immediate feedback on first load.
+   */
+  isBooting: boolean
   /** When true, the last write to localStorage failed (e.g. quota). */
   storageError: boolean
   addTransaction: (t: Omit<Transaction, 'id'>) => void
@@ -90,45 +96,81 @@ function now(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}`
 }
 
+/**
+ * How long the app holds the boot skeleton while hydrating persisted state.
+ * Real first-load latency comes from the storage read; a small floor keeps
+ * the skeleton recognizable instead of a single-frame flash. Tests can lower
+ * it (or pass `initialStore`) to stay deterministic.
+ */
+export const BOOT_DELAY_MS = 260
+
+/**
+ * Minimum delay for async demo-data loading so the spinner is perceptible.
+ * Mirrors fetching a remote dataset; falls back to the bundled snapshot.
+ */
+export const DEMO_LOAD_DELAY_MS = 400
+
 export function AppStateProvider({
   children,
   initialStore,
   seedDemo = false,
+  bootDelayMs = BOOT_DELAY_MS,
 }: {
   children: ReactNode
   initialStore?: Partial<Storage>
   /** When true (and no persisted state exists) the demo dataset is loaded. */
   seedDemo?: boolean
+  /** How long the boot skeleton is shown while state hydrates. */
+  bootDelayMs?: number
 }) {
-  const [persisted] = useState<ReturnType<typeof loadPersistedState>>(() =>
-    typeof initialStore === 'undefined' ? loadPersistedState() : null,
-  )
-
-  const [locale, setLocale] = useState<Locale>(
-    initialStore?.locale ?? persisted?.locale ?? 'es',
-  )
+  // State starts at defaults; persisted values are applied asynchronously by
+  // the boot effect below so the initial paint can show a skeleton.
+  const [locale, setLocale] = useState<Locale>(initialStore?.locale ?? 'es')
   const [transactions, setTransactions] = useState<Transaction[]>(
-    initialStore?.transactions ??
-      persisted?.transactions ??
-      (seedDemo ? demoTransactions : []),
+    initialStore?.transactions ?? (seedDemo ? demoTransactions : []),
   )
   const [categories, setCategories] = useState<Category[]>(
-    initialStore?.categories ??
-      persisted?.categories ??
-      PREDEFINED_CATEGORIES,
+    initialStore?.categories ?? PREDEFINED_CATEGORIES,
   )
   const [investments, setInvestments] = useState<Investment[]>(
-    initialStore?.investments ??
-      persisted?.investments ??
-      (seedDemo ? demoInvestments : []),
+    initialStore?.investments ?? (seedDemo ? demoInvestments : []),
   )
   const [budgets, setBudgets] = useState<Budget[]>(
-    initialStore?.budgets ?? persisted?.budgets ?? (seedDemo ? demoBudgets : []),
+    initialStore?.budgets ?? (seedDemo ? demoBudgets : []),
   )
   const [recurrings, setRecurrings] = useState<RecurringTransaction[]>(
-    initialStore?.recurrings ?? persisted?.recurrings ?? [],
+    initialStore?.recurrings ?? [],
   )
   const [storageError, setStorageError] = useState(false)
+  // Tests that inject `initialStore` get a synchronous store; otherwise the
+  // provider boots asynchronously and the app shell shows the skeleton.
+  const [isBooting, setIsBooting] = useState<boolean>(
+    typeof initialStore === 'undefined',
+  )
+
+  // Boot hydration: reads the persisted snapshot after the first paint (so
+  // the browser can render the skeleton) and swaps it into the store.
+  useEffect(() => {
+    if (typeof initialStore !== 'undefined') return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      const loaded = loadPersistedState()
+      if (cancelled) return
+      if (loaded !== null) {
+        setLocale(loaded.locale)
+        setTransactions(loaded.transactions)
+        setCategories(loaded.categories)
+        setInvestments(loaded.investments)
+        setBudgets(loaded.budgets)
+        setRecurrings(loaded.recurrings)
+      }
+      setIsBooting(false)
+    }, bootDelayMs)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [initialStore, bootDelayMs])
 
   // Refs so `syncDue` can read the latest slices without re-creating the
   // callback and re-triggering consumers on every render.
@@ -143,9 +185,10 @@ export function AppStateProvider({
 
   // Persistence: any change to the store (or locale) is written to
   // localStorage. Write errors are surfaced via `storageError` instead of
-  // crashing the UI.
+  // crashing the UI. The effect is skipped while booting so a not-yet-
+  // hydrated default store cannot overwrite the persisted snapshot.
   useEffect(() => {
-    if (initialStore !== undefined) return
+    if (initialStore !== undefined || isBooting) return
     const error = savePersistedState({
       locale,
       transactions,
@@ -158,7 +201,7 @@ export function AppStateProvider({
     // of the same effect, so the setState here is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStorageError(error !== null)
-  }, [locale, transactions, categories, investments, budgets, recurrings, initialStore])
+  }, [locale, transactions, categories, investments, budgets, recurrings, initialStore, isBooting])
 
   const syncDue = useMemo(
     () => (): number => {
@@ -197,6 +240,7 @@ export function AppStateProvider({
     locale,
     setLocale,
     storageError,
+    isBooting,
     store: { locale, transactions, categories, investments, budgets, recurrings },
     addTransaction: (t) =>
       setTransactions((prev) => [...prev, { ...t, id: now('tx') }]),
