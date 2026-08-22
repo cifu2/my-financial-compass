@@ -221,6 +221,35 @@ El proyecto está operativo con **build limpio, tests pasando, lint sin errores*
 Ver cambios intermedios en `features/budgeting` e `features/investments`
 (grupos compartidos y ownership). A UNIR en el lanzamiento del contexto común.
 
+## ✅ Dashboard multi-contexto (MYF-26 COMPLETADO)
+
+- **Selector de contexto propio** (`DashboardContextSelector`): **Personal**,
+  **Todo** (vista consolidada) y cada grupo del miembro. Se muestra solo cuando
+  el usuario pertenece a al menos un grupo; por defecto Personal.
+- **Servicio `dashboardContext.ts`**: `DashboardContext` (personal/all/group) +
+  `transactionsInContext` con la misma regla de ámbito que el calculador de
+  presupuestos (`isInScope`) para que KPI y presupuesto cuenten lo mismo:
+  personal → solo filas propias; group → ledger del grupo + gasto de cualquier
+  miembro (nunca filas de otro grupo); all → todo el libro.
+- **Todos los widgets en contexto**: KPIs del mes, comparativa vs anterior,
+  desglose de gastos, transacciones recientes, snapshot de presupuestos,
+  patrimonio neto e histórico filtran por el contexto activo y se actualizan al
+  cambiar.
+- **Etiquetas de origen en "Todo"**: columna "Origen" en transacciones recientes
+  (Personal / nombre de grupo) y desglose de gastos por categoría con chips
+  etiquetados.
+- **Desglose por miembro en grupo**: cada categoría del desglose muestra chips
+  `miembro · importe` (agregación de todos los miembros).
+- **Patrimonio neto por contexto**: personal → parte proporcional del usuario;
+  grupo → activos del grupo al total; "Todo" → inventario completo a valor total
+  (`PortfolioContext.kind = 'all'`).
+- **Decisión**: contexto local de la vista (no persistido), igual que Recurrentes;
+  el dashboard ya no depende de `store.budgetGroupId`. Ver
+  [ADR-0011](docs/adr/0011-dashboard-context.md)
+- **Tests**: 10 nuevos/ajustados (dashboardContext, expenseBreakdown con shares,
+  holdingsForContext 'all', página multi-contexto). Suite: **+28 tests** respecto
+  al lanzamiento anterior en los ficheros del dashboard.
+
 ## Próximos Pasos Recomendados
 
 1. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial

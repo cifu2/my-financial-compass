@@ -7,6 +7,21 @@ export interface CategoryExpense {
   amount: number
   /** Share of the month's total expenses, 0..100. */
   percentage: number
+  /**
+   * Labelled sub-totals that explain the row: per member in a group context,
+   * per origin (personal / each group) in the consolidated "Todo" view
+   * (HU-0.5). Absent when the view does not split the category.
+   */
+  shares?: CategoryShare[]
+}
+
+/** One labelled sub-total of a {@link CategoryExpense}. */
+export interface CategoryShare {
+  /** Stable id (member `userId` or origin key). */
+  key: string
+  /** Human label (member name or "Personal"/group name). */
+  label: string
+  amount: number
 }
 
 /** One month of the ledger: totals plus the top expense categories. */

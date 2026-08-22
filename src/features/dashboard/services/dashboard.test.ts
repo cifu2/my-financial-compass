@@ -14,6 +14,7 @@ import {
   netWorthItems,
   contextNetWorth,
   contextNetWorthItems,
+  expenseBreakdown,
   percentageChange,
   previousMonthKey,
   recentTransactions,
@@ -93,6 +94,44 @@ describe('dashboard service', () => {
     )
     expect(top).toHaveLength(1)
     expect(top[0].categoryName).toBe('c-other')
+  })
+
+  describe('expenseBreakdown with labelled sub-totals (HU-0.5)', () => {
+    const rows = [
+      tx('a', 'A', -50, '2026-06-01', 'c-food', 'expense'),
+      tx('b', 'B', -30, '2026-06-02', 'c-food', 'expense'),
+      tx('c', 'C', -20, '2026-06-03', 'c-fun', 'expense'),
+    ]
+
+    it('is identical to the plain top list when no split is given', () => {
+      const plain = expenseBreakdown(rows, '2026-06', CATS)
+      const top = topExpenseCategories(rows, '2026-06', CATS)
+      expect(plain).toEqual(top)
+      expect(plain[0].shares).toBeUndefined()
+    })
+
+    it('splits each category by member and keeps labels per row', () => {
+      const split = (t: Transaction) => (
+        t.userId === undefined
+          ? { key: t.concept, label: t.concept }
+          : { key: t.userId, label: `Member ${t.userId}` }
+      )
+      const withShares = expenseBreakdown(rows, '2026-06', CATS, 5, split)
+      const food = withShares.find((row) => row.categoryId === 'c-food')
+      expect(food?.amount).toBe(80)
+      // Shares sorted descending: A (50) then B (30).
+      expect(food?.shares).toEqual([
+        { key: 'A', label: 'A', amount: 50 },
+        { key: 'B', label: 'B', amount: 30 },
+      ])
+      const fun = withShares.find((row) => row.categoryId === 'c-fun')
+      expect(fun?.shares).toEqual([{ key: 'C', label: 'C', amount: 20 }])
+    })
+
+    it('ignores null splits (untagged rows) without creating empty shares', () => {
+      const withNull = expenseBreakdown(rows, '2026-06', CATS, 5, () => null)
+      expect(withNull.every((row) => row.shares === undefined)).toBe(true)
+    })
   })
 
   it('computes month comparison numbers', () => {

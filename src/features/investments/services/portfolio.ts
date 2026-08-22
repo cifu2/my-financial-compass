@@ -13,12 +13,15 @@ export function nativeValue(investment: Investment): number {
  * several members with explicit percentages (`InvestmentOwnership` rows whose
  * sum is 100). Depending on the context being rendered, the portfolio shows
  * either the full asset value (group context) or only the proportional share
- * that belongs to the current user (personal context).
+ * that belongs to the current user (personal context). The **`all`** context
+ * (dashboard in "Todo" view, HU-0.5) values every asset at full value so the
+ * consolidated net worth spans personal and shared holdings.
  */
 
 export type PortfolioContext =
   | { kind: 'personal'; userId: string }
   | { kind: 'group'; groupId: string }
+  | { kind: 'all' }
 
 /**
  * A holding as seen from one context: the raw investment, the fraction of its
@@ -61,12 +64,23 @@ export function isFullOwnership(rows: readonly InvestmentOwnership[]): boolean {
  * - **personal**: personal assets (100 % owner) plus group assets where the
  *   user holds a share, each valued at the user's percentage.
  * - **group**: every asset of that group at full value, with ownership rows.
+ * - **all**: every asset the device knows about, at full value (the
+ *   consolidated dashboard view, HU-0.5).
  */
 export function holdingsForContext(
   investments: readonly Investment[],
   ownerships: readonly InvestmentOwnership[],
   context: PortfolioContext,
 ): PortfolioHolding[] {
+  if (context.kind === 'all') {
+    return investments.map((inv) => ({
+      investment: inv,
+      nativeValue: nativeValue(inv),
+      share: 1,
+      ownership: ownerships.filter((o) => o.investmentId === inv.id),
+    }))
+  }
+
   if (context.kind === 'group') {
     return investments
       .filter((inv) => inv.groupId === context.groupId)

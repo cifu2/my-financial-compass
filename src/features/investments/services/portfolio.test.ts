@@ -100,6 +100,21 @@ describe('investment portfolio context (HU-0.9)', () => {
     })
   })
 
+  describe('holdingsForContext (all, HU-0.5)', () => {
+    it('values every asset at full share with its ownership rows', () => {
+      const holdings = holdingsForContext(ALL, OWNERS, { kind: 'all' })
+      expect(holdings.map((h) => h.investment.id)).toEqual(['p-1', 'g-1', 'g-2'])
+      for (const h of holdings) {
+        expect(h.share).toBe(1)
+        expect(h.ownership).toEqual(
+          h.investment.groupId === undefined
+            ? []
+            : OWNERS.filter((o) => o.investmentId === h.investment.id),
+        )
+      }
+    })
+  })
+
   describe('context value helpers', () => {
     it('contextNativeValue weight each holding by the viewer share', () => {
       const holdings = holdingsForContext(ALL, OWNERS, { kind: 'personal', userId: 'usr-ana' })

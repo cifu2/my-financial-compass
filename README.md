@@ -86,8 +86,8 @@ src/
 │   ├── investments/       # Módulo 4
 │   │   └── types/
 │   └── dashboard/         # Módulo 5
-│       ├── components/    # Widgets: KPIs, desglose, recientes, patrimonio, histórico
-│       ├── services/      # Cálculos mensuales, patrimonio y conversión de divisas
+│       ├── components/    # Widgets: KPIs, desglose, recientes, patrimonio, histórico, selector de contexto
+│       ├── services/      # Cálculos mensuales, patrimonio, conversión de divisas y contexto (HU-0.5)
 │       ├── data/          # Dataset de demostración (opt-in)
 │       └── types/
 ├── hooks/
