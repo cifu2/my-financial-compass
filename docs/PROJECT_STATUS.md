@@ -1,5 +1,19 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Coherencia de fechas "hoy" UTC/local (ADR-0014, COMPLETADO)
+
+- **Definición única de "hoy"**: `todayIso()` (fecha local) como fuente de
+  verdad. Los formularios (transacción, recurrente, liquidación) ya no usan
+  `formatDate(new Date(), locale)` (formateo UTC), que devolvía *ayer* como
+  "hoy" en zonas UTC+2/UTC+1 entre las 00:00 y las 02:00.
+- **Validadores coherentes**: `notInFuture`, `notBeforeToday` e `isFutureOnly`
+  comparan el ISO de la fecha parseada contra `todayIso()` (sin aritmética UTC
+  con `Date.setUTCHours`). Una fecha legítimamente "hoy" nunca se rechaza.
+- **Tests alineados**: helpers de fecha en `RecurringPage.test` y
+  `TransactionsPage.test` generan el ISO local en lugar del formato UTC,
+  eliminando la flakiness en la franja nocturna. Suite **367/367**.
+- [ADR-0014](docs/adr/0014-today-utc-local.md)
+
 ## Resumen Ejecutivo
 
 El proyecto está operativo con **build limpio, tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), el **modelo multiusuario con grupos** (HU-0.4/0.8/0.9, MYF-19..27) y el **sistema de permisos por rol** (HU-0.10, MYF-28), con persistencia, loading states y error boundary global.
