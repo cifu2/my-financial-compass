@@ -21,6 +21,7 @@ const TransactionsPage = lazy(() => import('./pages/TransactionsPage'))
 const RecurringPage = lazy(() => import('./pages/RecurringPage'))
 const BudgetsPage = lazy(() => import('./pages/BudgetsPage'))
 const InvestmentsPage = lazy(() => import('./pages/InvestmentsPage'))
+const BalancesPage = lazy(() => import('./pages/BalancesPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 
 function CurrentPage({ route }: { route: Route }) {
@@ -30,6 +31,7 @@ function CurrentPage({ route }: { route: Route }) {
       {route.key === 'recurring' ? <RecurringPage /> : null}
       {route.key === 'budgets' ? <BudgetsPage /> : null}
       {route.key === 'investments' ? <InvestmentsPage /> : null}
+      {route.key === 'balances' ? <BalancesPage /> : null}
       {route.key === 'settings' ? <SettingsPage /> : null}
       {route.key === 'dashboard' ? <DashboardPage /> : null}
     </>

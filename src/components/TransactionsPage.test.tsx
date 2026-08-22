@@ -1,16 +1,25 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, type RenderResult } from '@testing-library/react'
 import { AppStateProvider, type Category } from '../state/AppState'
+import { AuthProvider } from '../features/auth/state/AuthContext'
 import TransactionsPage from '../pages/TransactionsPage'
 import { formatDate } from '../lib/dates'
 
+/**
+ * The shared-expense form (HU-0.7) reads the current session (useAuth) to
+ * populate the group selector, so the page needs an auth context even in
+ * isolated component tests. Without a session the page falls back to the
+ * personal view, which is exactly what these MYF-3 cases exercise.
+ */
 function renderPage(initialStore?: { categories?: Category[] }) {
   return render(
-    <AppStateProvider
-      initialStore={{ categories: initialStore?.categories ?? [] }}
-    >
-      <TransactionsPage />
-    </AppStateProvider>,
+    <AuthProvider>
+      <AppStateProvider
+        initialStore={{ categories: initialStore?.categories ?? [] }}
+      >
+        <TransactionsPage />
+      </AppStateProvider>
+    </AuthProvider>,
   )
 }
 

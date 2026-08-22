@@ -136,6 +136,59 @@ describe('storageService', () => {
       expect(loaded.investmentOwnerships[0].percentage).toBe(60)
     })
 
+    it('round-trips expense splits and settlements alongside existing data', () => {
+      const state = JSON.parse(JSON.stringify(validState)) as PersistedState
+      state.transactions.push({
+        id: 'tx-grp',
+        concept: 'Cena hogar',
+        amount: 45,
+        date: '2026-08-20',
+        type: 'expense',
+        categoryId: 'cat-1',
+        groupId: 'grp-hogar',
+      })
+      state.expenseSplits = [
+        {
+          transactionId: 'tx-grp',
+          groupId: 'grp-hogar',
+          paidBy: 'usr-ana',
+          method: 'equal',
+          shares: [
+            { userId: 'usr-ana', amount: 15 },
+            { userId: 'usr-jose', amount: 15 },
+            { userId: 'usr-lucia', amount: 15 },
+          ],
+        },
+      ]
+      state.settlements = [
+        {
+          id: 'set-1',
+          groupId: 'grp-hogar',
+          fromUserId: 'usr-jose',
+          toUserId: 'usr-ana',
+          amount: 15,
+          date: '2026-08-21',
+          createdAt: '2026-08-21T10:00:00.000Z',
+          note: 'cena',
+        },
+      ]
+      const error = savePersistedState(state)
+      expect(error).toBeNull()
+      const loaded = loadPersistedState()!
+      expect(loaded.expenseSplits).toHaveLength(1)
+      expect(loaded.expenseSplits![0].method).toBe('equal')
+      expect(loaded.expenseSplits![0].paidBy).toBe('usr-ana')
+      expect(loaded.settlements).toHaveLength(1)
+      expect(loaded.settlements![0].note).toBe('cena')
+    })
+
+    it('defaults to empty splits and settlements on legacy snapshots', () => {
+      const legacy = JSON.parse(JSON.stringify(validState))
+      const parsed = parsePersistedState(JSON.stringify(legacy))
+      expect(parsed?.expenseSplits).toEqual([])
+      expect(parsed?.settlements).toEqual([])
+    })
+
     it('returns null on incompatible schema version', () => {
       const badVersion = { ...validState, version: 99 }
       expect(parsePersistedState(JSON.stringify(badVersion))).toBeNull()

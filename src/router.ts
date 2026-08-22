@@ -6,6 +6,7 @@ export type SectionKey =
   | 'recurring'
   | 'budgets'
   | 'investments'
+  | 'balances'
   | 'settings'
 
 /** Guest-only auth screens (outside the main nav). */
@@ -26,6 +27,7 @@ export const ROUTES: Route[] = [
   { key: 'recurring', path: '/recurring', label: 'Recurring', crumb: 'Recurring' },
   { key: 'budgets', path: '/budgets', label: 'Budgets', crumb: 'Budgets' },
   { key: 'investments', path: '/investments', label: 'Investments', crumb: 'Investments' },
+  { key: 'balances', path: '/balances', label: 'Balances', crumb: 'Balances' },
   { key: 'settings', path: '/settings', label: 'Settings', crumb: 'Settings' },
 ]
 

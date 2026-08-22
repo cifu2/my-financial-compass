@@ -6,9 +6,13 @@ import { ConfirmDialog, type ConfirmStrings } from '../components/ConfirmDialog'
 import { UndoToast } from '../components/UndoToast'
 import { useUndo } from '../hooks/useUndo'
 import { useAppState, type Transaction } from '../state/AppState'
+import { useAuth } from '../features/auth/state/AuthContext'
 import { CategoryManager } from '../features/categories/components/CategoryManager'
 import { CategoryPicker } from '../features/categories/components/CategoryPicker'
 import { categoriesForType } from '../features/categories/services/categoryService'
+import { SplitEditor, type SplitDraft } from '../features/splits/components/SplitEditor'
+import { splitGroupsFor } from '../features/splits/services/splitsGroupContext'
+import type { ExpenseSplit } from '../features/splits/types'
 import {
   required,
   maxLength,
@@ -29,6 +33,10 @@ interface TxForm {
   type: string
   categoryId: string
   date: string
+  /** Group context of the transaction ('' = personal). */
+  groupId: string
+  /** When true the expense is shared among the group members. */
+  shared: boolean
 }
 
 const CONCEPT: Validator[] = [required(), maxLength(80)]
@@ -36,11 +44,19 @@ const AMOUNT: Validator[] = [required(), mustBeNumber(), greaterThan(0)]
 const TYPE: Validator[] = [requiredSelect()]
 const CATEGORY: Validator[] = [requiredSelect()]
 const DATE: Validator[] = [required(), isValidDate(), notInFuture()]
-
 export default function TransactionsPage() {
   const { locale, store, addTransaction, remove, restore } =
     useAppState()
+  const { user } = useAuth()
   const t = (key: UIKey) => translate(locale, key)
+
+  // ---- group context for shared expenses (HU-0.7)
+  const currentUserId = user?.id ?? ''
+  const groupOptions = useMemo(() => {
+    if (!currentUserId) return []
+    const seen = new Set<string>()
+    return splitGroupsFor(currentUserId).map((g) => ({ id: g.id, name: g.name })).filter((g) => (seen.has(g.id) ? false : (seen.add(g.id), true)))
+  }, [currentUserId])
 
   // ---- transaction form
   const [tx, setTx] = useState<TxForm>(() => ({
@@ -49,9 +65,14 @@ export default function TransactionsPage() {
     type: '',
     categoryId: '',
     date: formatDate(new Date(), locale),
+    groupId: '',
+    shared: false,
   }))
   const [txTouched, setTxTouched] = useState<Partial<Record<keyof TxForm, boolean>>>({})
   const [txAttempted, setTxAttempted] = useState(false)
+  const [splitDraft, setSplitDraft] = useState<SplitDraft | null>(null)
+
+  const selectedGroup = tx.groupId
 
   function txErr(key: keyof TxForm): string | undefined {
     const validators = txValidatorsFor(key)
@@ -71,11 +92,18 @@ export default function TransactionsPage() {
         return CATEGORY
       case 'date':
         return DATE
+      default:
+        return []
     }
   }
 
   function setTxField(key: keyof TxForm, value: string) {
     setTx((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function setShared(shared: boolean) {
+    setTx((prev) => ({ ...prev, shared }))
+    setSplitDraft(null)
   }
 
   function resetTxForm() {
@@ -85,9 +113,28 @@ export default function TransactionsPage() {
       type: '',
       categoryId: '',
       date: formatDate(new Date(), locale),
+      groupId: '',
+      shared: false,
     })
     setTxTouched({})
     setTxAttempted(false)
+    setSplitDraft(null)
+  }
+
+  function splitValid(): boolean {
+    if (!tx.shared || !selectedGroup) return true // no split required
+    return splitDraft !== null && splitDraft.error === null && splitDraft.shares.length > 0
+  }
+
+  function buildSplit(): Omit<ExpenseSplit, 'transactionId'> | undefined {
+    if (!tx.shared || !selectedGroup || !splitDraft) return undefined
+    if (splitDraft.error !== null || splitDraft.shares.length === 0) return undefined
+    return {
+      groupId: selectedGroup,
+      paidBy: splitDraft.paidBy,
+      method: splitDraft.method,
+      shares: splitDraft.shares,
+    }
   }
 
   function saveTransaction(e: FormEvent) {
@@ -106,14 +153,21 @@ export default function TransactionsPage() {
       validateField(tx.type, TYPE, locale) ||
       validateField(tx.categoryId, CATEGORY, locale) ||
       validateField(tx.date, DATE, locale)
-    if (invalid) return
-    addTransaction({
-      concept: tx.concept.trim(),
-      amount: Number(tx.amount.replace(',', '.')),
-      type: tx.type as 'income' | 'expense',
-      categoryId: tx.categoryId,
-      date: toIsoDate(tx.date),
-    })
+    if (invalid || !splitValid()) {
+      return
+    }
+    const amount = Number(tx.amount.replace(',', '.'))
+    addTransaction(
+      {
+        concept: tx.concept.trim(),
+        amount,
+        type: tx.type as 'income' | 'expense',
+        categoryId: tx.categoryId,
+        date: toIsoDate(tx.date),
+        groupId: selectedGroup || undefined,
+      },
+      buildSplit(),
+    )
     resetTxForm()
     showTxSaved(t('toast.transactionSaved'))
   }
@@ -228,6 +282,47 @@ export default function TransactionsPage() {
                 placeholder="DD/MM/YYYY"
               />
             </div>
+
+            <div className="form-row">
+              <SelectField
+                label={t('budget.contextLabel')}
+                name="groupId"
+                value={tx.groupId}
+                onChange={(e) => {
+                  setTxField('groupId', e.target.value)
+                  setSplitDraft(null)
+                }}
+                options={[
+                  { value: '', label: t('budget.contextPersonal') },
+                  ...groupOptions.map((g) => ({ value: g.id, label: g.name })),
+                ]}
+              />
+              {tx.groupId !== '' && (
+                <label className="form-field form-field--checkbox">
+                  <span className="form-field__label">{t('split.share')}</span>
+                  <input
+                    type="checkbox"
+                    name="shared"
+                    checked={tx.shared}
+                    onChange={(e) => setShared(e.target.checked)}
+                  />
+                </label>
+              )}
+            </div>
+
+            {tx.groupId !== '' && tx.shared && (
+<SplitEditor
+                locale={locale}
+                amount={Number(tx.amount.replace(',', '.'))}
+                groupId={tx.groupId}
+                currentUserId={currentUserId}
+                attempted={txAttempted}
+                onChange={(draft) => {
+                  setSplitDraft(draft)
+                }}
+              />
+            )}
+
             <div className="form-actions">
               <button type="button" className="btn btn--secondary" onClick={resetTxForm}>
                 {t('form.cancel')}
@@ -240,7 +335,12 @@ export default function TransactionsPage() {
         </div>
 
         <div className="panel">
-          <h2>{t('section.transactions')}</h2>
+          <div className="panel-heading">
+            <h2>{t('section.transactions')}</h2>
+            <a className="btn btn--secondary" href="#/balances">
+              {t('split.balancesLink')}
+            </a>
+          </div>
           {store.transactions.length === 0 ? (
             <p className="text-muted">{t('common.empty')}</p>
           ) : (
@@ -255,37 +355,47 @@ export default function TransactionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {store.transactions.map((item) => (
-                  <tr key={item.id}>
-                    <td>{formatDate(item.date, locale)}</td>
-                    <td>{item.concept}</td>
-                    <td>
-                      {store.categories.find((c) => c.id === item.categoryId)?.name ??
-                        '—'}
-                    </td>
-                    <td>
-                      <span className={item.type === 'income' ? 'text-income' : 'text-expense'}>
-                        {item.type === 'income' ? '+' : '−'} €
-                        {Math.abs(item.amount).toFixed(2)}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn--danger"
-                        onClick={() =>
-                          setConfirming({
-                            kind: 'transaction',
-                            id: item.id,
-                            label: item.concept,
-                          })
-                        }
-                      >
-                        {t('common.delete')}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {store.transactions.map((item) => {
+                  const split = store.expenseSplits.find((s) => s.transactionId === item.id)
+                  return (
+                    <tr key={item.id}>
+                      <td>{formatDate(item.date, locale)}</td>
+                      <td>
+                        {item.concept}
+                        {split && (
+                          <span className="split-badge" title={t('split.shared')}>
+                            {t('split.shared')}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {store.categories.find((c) => c.id === item.categoryId)?.name ??
+                          '—'}
+                      </td>
+                      <td>
+                        <span className={item.type === 'income' ? 'text-income' : 'text-expense'}>
+                          {item.type === 'income' ? '+' : '−'} €
+                          {Math.abs(item.amount).toFixed(2)}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn--danger"
+                          onClick={() =>
+                            setConfirming({
+                              kind: 'transaction',
+                              id: item.id,
+                              label: item.concept,
+                            })
+                          }
+                        >
+                          {t('common.delete')}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}

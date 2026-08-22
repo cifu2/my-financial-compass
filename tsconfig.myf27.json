@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": { "noEmit": true, "composite": false, "incremental": false },
+  "include": [
+    "src/features/splits",
+    "src/lib/storageService.ts",
+    "src/lib/i18n.ts",
+    "src/state/AppState.tsx",
+    "src/pages/TransactionsPage.tsx",
+    "src/pages/BalancesPage.tsx",
+    "src/router.ts",
+    "src/App.tsx"
+  ],
+  "exclude": ["src/**/*.test.*", "src/test"]
+}
