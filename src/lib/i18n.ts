@@ -164,6 +164,14 @@ const ui: Record<Locale, Record<string, string>> = {
     'dash.nativeValue': 'Valor (divisa)',
     'dash.loadDemo': 'Cargar datos de demostración',
     'dash.loadedDemo': 'Datos de demostración cargados',
+    'error.title': 'Algo ha ido mal',
+    'error.message':
+      'La aplicación encontró un problema inesperado. Tus datos guardados en este dispositivo siguen a salvo.',
+    'error.retry': 'Reintentar',
+    'error.restart': 'Reiniciar la aplicación',
+    'error.reportLabel': 'Copiar informe del error',
+    'error.reportCopiedLabel': 'Informe copiado',
+    'error.detailsLabel': 'Ver detalles técnicos',
   },
   en: {
     'app.title': 'Financial Compass',
@@ -328,6 +336,14 @@ const ui: Record<Locale, Record<string, string>> = {
     'dash.nativeValue': 'Value (currency)',
     'dash.loadDemo': 'Load demo data',
     'dash.loadedDemo': 'Demo data loaded',
+    'error.title': 'Something went wrong',
+    'error.message':
+      'The app ran into an unexpected problem. Your saved data on this device is safe.',
+    'error.retry': 'Try again',
+    'error.restart': 'Restart the app',
+    'error.reportLabel': 'Copy error report',
+    'error.reportCopiedLabel': 'Report copied',
+    'error.detailsLabel': 'View technical details',
   },
 }
 

@@ -1,9 +1,12 @@
+import { type ReactNode } from 'react'
 import { AppStateProvider, useAppState } from './state/AppState'
 import { MainNav } from './components/MainNav'
 import { Breadcrumb } from './components/Breadcrumb'
 import { DashboardSkeleton } from './components/DashboardSkeleton'
+import { ErrorBoundary, type ErrorBoundaryStrings } from './components/ErrorBoundary'
 import { useRoute, type Route } from './router'
-import { translate } from './lib/i18n'
+import { translate, type UIKey } from './lib/i18n'
+import type { Locale } from './lib/dates'
 import DashboardPage from './pages/DashboardPage'
 import TransactionsPage from './pages/TransactionsPage'
 import RecurringPage from './pages/RecurringPage'
@@ -19,6 +22,19 @@ function CurrentPage({ route }: { route: Route }) {
   if (route.key === 'investments') return <InvestmentsPage />
   if (route.key === 'settings') return <SettingsPage />
   return <DashboardPage />
+}
+
+function errorBoundaryStrings(locale: Locale): ErrorBoundaryStrings {
+  const t = (key: UIKey): string => translate(locale, key)
+  return {
+    title: t('error.title'),
+    message: t('error.message'),
+    retryLabel: t('error.retry'),
+    restartLabel: t('error.restart'),
+    reportLabel: t('error.reportLabel'),
+    reportCopiedLabel: t('error.reportCopiedLabel'),
+    detailsLabel: t('error.detailsLabel'),
+  }
 }
 
 function AppShell() {
@@ -53,8 +69,18 @@ function AppShell() {
 function App() {
   return (
     <AppStateProvider>
-      <AppShell />
+      <AppErrorBoundary>
+        <AppShell />
+      </AppErrorBoundary>
     </AppStateProvider>
+  )
+}
+
+/** Locale-aware global error boundary wrapping all page content. */
+function AppErrorBoundary({ children }: { children: ReactNode }) {
+  const { locale } = useAppState()
+  return (
+    <ErrorBoundary strings={errorBoundaryStrings(locale)}>{children}</ErrorBoundary>
   )
 }
 
