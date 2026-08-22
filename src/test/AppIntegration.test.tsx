@@ -137,6 +137,7 @@ describe('App integration (MYF-4)', () => {
       ],
       categories: [],
       investments: [],
+      investmentOwnerships: [],
       budgets: [],
       recurrings: [],
     })

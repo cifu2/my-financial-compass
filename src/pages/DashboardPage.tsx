@@ -7,6 +7,8 @@ import { monthLabel } from '../lib/dates'
 import { translate, type UIKey } from '../lib/i18n'
 import { buildBudgetRows } from '../features/budgeting/services/budgetCalculator'
 import type { SpendingInput } from '../features/budgeting/services/budgetCalculator'
+import { groupBudgetOptions } from '../features/budgeting/services/budgetScope'
+import { readSessionUser } from '../features/auth/services/authService'
 import { SummaryCards, type SummaryMetric } from '../features/dashboard/components/SummaryCards'
 import { ExpenseBreakdown } from '../features/dashboard/components/ExpenseBreakdown'
 import { RecentTransactions } from '../features/dashboard/components/RecentTransactions'
@@ -17,14 +19,15 @@ import {
   latestMonth,
   monthTotals,
   monthsAvailable,
-  netWorth,
-  netWorthItems,
+  contextNetWorth,
+  contextNetWorthItems,
   percentageChange,
   previousMonthKey,
   recentTransactions,
   summarizeMonth,
 } from '../features/dashboard/services/dashboard'
 import { getRates } from '../features/dashboard/services/currency'
+import { scopeCurrency as investmentContextCurrency } from '../features/investments/services/investmentGroupContext'
 import { useAppCurrency } from '../features/auth/state/AuthContext'
 
 export default function DashboardPage() {
@@ -98,24 +101,84 @@ export default function DashboardPage() {
     () =>
       transactions
         .filter((tr) => tr.type === 'expense')
-        .map((tr) => ({ amount: tr.amount, date: tr.date, categoryId: tr.categoryId })),
+        .map((tr) => ({
+          amount: tr.amount,
+          date: tr.date,
+          categoryId: tr.categoryId,
+          userId: tr.userId,
+          groupId: tr.groupId,
+        })),
     [transactions],
   )
 
+  // HU-0.8: the dashboard budget snapshot follows the active context chosen in
+  // the budget module (personal vs group), aggregating the whole group's spend.
+  const budgetContext = useMemo(
+    () =>
+      ({
+        kind: store.budgetGroupId ? 'group' : 'personal',
+        groupId: store.budgetGroupId ?? null,
+      }) as const,
+    [store.budgetGroupId],
+  )
+  const currentUserId = readSessionUser()?.id ?? null
+  const budgetOptions = useMemo(() => {
+    const scope = groupBudgetOptions(store.budgetGroupId ?? '', currentUserId)
+    return {
+      context: budgetContext,
+      currentUserId: scope.currentUserId,
+      memberIds: scope.memberIds,
+      memberNames: scope.memberNames,
+    }
+  }, [budgetContext, store.budgetGroupId, currentUserId])
+
   const budgetRows = useMemo(
     () =>
-      buildBudgetRows(budgets, expenseInputs, () => true, displayMonth, categoryNameFor),
-    [budgets, expenseInputs, displayMonth, categoryNameFor],
+      buildBudgetRows(
+        budgets,
+        expenseInputs,
+        () => true,
+        displayMonth,
+        categoryNameFor,
+        budgetOptions,
+      ),
+    [budgets, expenseInputs, displayMonth, categoryNameFor, budgetOptions],
   )
 
   const rates = useMemo(() => getRates(), [])
+  const investmentContext = useMemo(
+    () =>
+      store.budgetGroupId
+        ? ({ kind: 'group', groupId: store.budgetGroupId } as const)
+        : ({ kind: 'personal', userId: currentUserId ?? '' } as const),
+    [store.budgetGroupId, currentUserId],
+  )
+  const groupContextCurrency = useMemo(
+    () => investmentContextCurrency(currentUserId ?? '', store.budgetGroupId ?? undefined) ?? primaryCurrency,
+    [store.budgetGroupId, currentUserId, primaryCurrency],
+  )
   const worth = useMemo(
-    () => netWorth(transactions, investments, rates.rates, primaryCurrency),
-    [transactions, investments, rates, primaryCurrency],
+    () =>
+      contextNetWorth(
+        transactions,
+        investments,
+        store.investmentOwnerships,
+        investmentContext,
+        groupContextCurrency,
+        rates.rates,
+      ),
+    [transactions, investments, store.investmentOwnerships, investmentContext, groupContextCurrency, rates],
   )
   const worthItems = useMemo(
-    () => netWorthItems(investments, rates.rates, primaryCurrency),
-    [investments, rates, primaryCurrency],
+    () =>
+      contextNetWorthItems(
+        investments,
+        store.investmentOwnerships,
+        investmentContext,
+        groupContextCurrency,
+        rates.rates,
+      ),
+    [investments, store.investmentOwnerships, investmentContext, groupContextCurrency, rates],
   )
 
   const historyRows: MonthlyHistoryRow[] = useMemo(

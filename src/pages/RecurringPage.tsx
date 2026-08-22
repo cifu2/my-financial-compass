@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { Page } from '../components/Page'
 import { ConfirmDialog, type ConfirmStrings } from '../components/ConfirmDialog'
 import { UndoToast } from '../components/UndoToast'
@@ -9,13 +9,21 @@ import type {
   OccurrenceOverride,
   OccurrenceTemplate,
 } from '../features/recurring/types'
-import { upcomingOccurrences, type UpcomingOccurrence } from '../features/recurring/services/recurrenceService'
-import { RecurringForm, type RecurringFormData } from '../features/recurring/components/RecurringForm'
+import {
+  upcomingOccurrences,
+  recurringsInContext,
+  type UpcomingOccurrence,
+  type RecurringContext,
+} from '../features/recurring/services/recurrenceService'
+import { RecurringForm, type RecurringFormData, type RecurringGroupOption } from '../features/recurring/components/RecurringForm'
 import { RecurringList, type RecurringListStrings } from '../features/recurring/components/RecurringList'
 import { UpcomingList, type UpcomingStrings } from '../features/recurring/components/UpcomingList'
 import { OccurrenceEditDialog } from '../features/recurring/components/OccurrenceEditDialog'
 import { translate, type UIKey } from '../lib/i18n'
 import { formatDate, todayIso } from '../lib/dates'
+import { readSessionUser } from '../features/auth/services/authService'
+import { listUserGroups } from '../features/groups/services/groupService'
+import { can } from '../features/groups/permissions'
 import '../features/recurring/recurring.css'
 
 type EditMode =
@@ -24,8 +32,16 @@ type EditMode =
 
 type RecurringPatch = Pick<
   RecurringTransaction,
-  'template' | 'frequency' | 'startDate' | 'endDate' | 'executionDay'
+  | 'template'
+  | 'frequency'
+  | 'startDate'
+  | 'endDate'
+  | 'executionDay'
+  | 'groupId'
 >
+
+const CONTEXT_ALL = 'all'
+const CONTEXT_PERSONAL = 'personal'
 
 function listStrings(t: (key: UIKey) => string): RecurringListStrings {
   return {
@@ -71,14 +87,50 @@ export default function RecurringPage() {
 
   const today = todayIso()
 
+  const currentUserId = readSessionUser()?.id ?? ''
+
+  // Groups the member may attach rules to (HU-0.8). Only groups where the
+  // member keeps `data.edit` can own shared recurring rules.
+  const [userGroups, setUserGroups] = useState<RecurringGroupOption[]>([])
+
+  useEffect(() => {
+    if (!currentUserId) return
+    let cancelled = false
+    void listUserGroups(currentUserId).then((groups) => {
+      if (cancelled) return
+      setUserGroups(
+        groups
+          .filter((g) => can(g.role, 'data.edit'))
+          .map((g) => ({ id: g.id, name: g.name })),
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [currentUserId])
+
+  // Which context the list shows. Defaults to "all" so members always see
+  // their personal rules and the shared group rules they may access.
+  const [listContext, setListContext] = useState<string>(CONTEXT_ALL)
+
+  const visibleRecurrings = useMemo(() => {
+    const context: RecurringContext =
+      listContext === CONTEXT_PERSONAL
+        ? { kind: 'personal' }
+        : listContext === CONTEXT_ALL
+          ? { kind: 'all' }
+          : { kind: 'group', groupId: listContext }
+    return recurringsInContext(store.recurrings, context)
+  }, [store.recurrings, listContext])
+
   const categoryNameFor = useMemo(() => {
     const map = new Map(store.categories.map((c) => [c.id, c.name]))
     return (id: string) => map.get(id) ?? null
   }, [store.categories])
 
   const upcoming = useMemo(
-    () => upcomingOccurrences(store.recurrings, today, 6),
-    [store.recurrings, today],
+    () => upcomingOccurrences(visibleRecurrings, today, 6),
+    [visibleRecurrings, today],
   )
 
   const recUndo = useUndo<RecurringTransaction>(8000)
@@ -110,6 +162,7 @@ export default function RecurringPage() {
       startDate: r.startDate,
       endDate: r.endDate,
       executionDay: r.executionDay,
+      groupId: r.groupId,
     }
   }
 
@@ -133,6 +186,7 @@ export default function RecurringPage() {
       startDate: data.startDate,
       endDate: data.endDate,
       executionDay: data.executionDay,
+      groupId: data.groupId,
     }
     if (mode.kind === 'edit') {
       const id = mode.recurring.id
@@ -145,7 +199,12 @@ export default function RecurringPage() {
       updateRecurring(id, patch)
       confirmToast(t('toast.recurringSaved'))
     } else {
-      addRecurring({ ...patch, isActive: true, nextExecution: '' })
+      addRecurring({
+        ...patch,
+        isActive: true,
+        nextExecution: '',
+        createdBy: data.groupId ? currentUserId : undefined,
+      })
       confirmToast(t('toast.recurringSaved'))
     }
     resetForm()
@@ -179,6 +238,8 @@ export default function RecurringPage() {
       executionDay: item.executionDay,
       isActive: item.isActive,
       nextExecution: '',
+      groupId: item.groupId,
+      createdBy: item.createdBy,
     })
   }
 
@@ -216,6 +277,7 @@ export default function RecurringPage() {
             key={formKey}
             locale={locale}
             categories={store.categories}
+            groups={userGroups}
             initial={mode.kind === 'edit' ? toFormData(mode.recurring) : undefined}
             saveLabel={t('form.save')}
             cancelLabel={t('form.cancel')}
@@ -225,9 +287,29 @@ export default function RecurringPage() {
         </div>
 
         <div className="panel">
-          <h2>{t('recurring.type')}</h2>
+          <div className="recurring-list-header">
+            <h2>{t('recurring.type')}</h2>
+            {userGroups.length > 0 && (
+              <label className="recurring-context-filter">
+                <span className="visually-hidden">{t('recurring.contextFilterLabel')}</span>
+                <select
+                  className="input"
+                  value={listContext}
+                  onChange={(e) => setListContext(e.target.value)}
+                >
+                  <option value={CONTEXT_ALL}>{t('recurring.contextAll')}</option>
+                  <option value={CONTEXT_PERSONAL}>{t('recurring.contextPersonal')}</option>
+                  {userGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
           <RecurringList
-            recurrings={store.recurrings}
+            recurrings={visibleRecurrings}
             strings={listStrings(t)}
             locale={locale}
             categoryNameFor={categoryNameFor}

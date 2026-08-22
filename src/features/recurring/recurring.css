@@ -66,6 +66,34 @@
   font-size: 0.82rem;
 }
 
+/* List header + group context filter (HU-0.8) ------------------------------ */
+
+.recurring-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.recurring-list-header h2 {
+  margin: 0;
+}
+
+.recurring-context-filter select {
+  min-width: 12rem;
+}
+
+@media (max-width: 640px) {
+  .recurring-list-header {
+    align-items: stretch;
+  }
+  .recurring-context-filter select {
+    width: 100%;
+  }
+}
+
 /* Upcoming executions ----------------------------------------------------- */
 
 .upcoming-list {

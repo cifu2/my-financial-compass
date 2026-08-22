@@ -34,6 +34,13 @@ El proyecto está operativo con **build limpio, 243 tests pasando, lint sin erro
 - **BudgetsPage**: CRUD completo con validación y barras de progreso
 - **BudgetCalculator**: cálculo automático de gasto acumulado por categoría
 
+### ✅ Presupuestos compartidos por grupo (HU-0.8, MYF-23)
+- **Modelo**: `Budget.groupId` (nullable) distingue presupuestos **personales** (`null`) de los **de grupo**; persistencia en `storageService` con tolerancia a datos previos
+- **Contexto**: `AppState.budgetGroupId` (personal o grupo activo) + `BudgetContextSelector`; presupuestos y snapshot del dashboard se filtran automáticamente al cambiar de contexto
+- **Consumo agregado**: en contexto de grupo el cálculo suma el gasto de **todos los miembros**; las transacciones llevan `userId` (propietario) y `groupId` (ledger compartido)
+- **Desglose por miembro**: `BudgetRow.memberSpend` + vista expandible "Desglose por miembro" en `BudgetDashboard` (`budgetScope.ts` resuelve miembros y nombres)
+- **Tests**: 8 nuevos en `budgetCalculator.group.test.ts` (agregación por miembro, filtrado por contexto, breakdown)
+
 ### ✅ Módulo 4: Inversiones (COMPLETADO)
 - **InvestmentsPage**: CRUD completo con validación y tipos de activo
 
@@ -158,6 +165,30 @@ El proyecto está operativo con **build limpio, 243 tests pasando, lint sin erro
 - [Index de docs](beta/README.md) + sección "Beta testers" en `README.md`.
 - **Tests**: `SettingsPage.test.tsx` cubre el enlace de feedback en ambos
   idiomas. Suite: **174 tests**.
+
+## ✅ Contexte de grupo en recurrentes (MYF-25 COMPLETADO)
+
+- **HU-0.8 recurrente falsificado**: reglas recurrentes **personales** o de **grupo**
+  (`RecurringTransaction.groupId` nullable + `createdBy`), compatibles con el modelo
+  multiusuario de ADR-0008).
+- **Materialización con contexto**: `materializeDue` propaga el `groupId` de la
+  regla a cada transacción generada (el ledger queda etiquetado por grupo).
+- **Permisos en generación**: `ruleCanGenerate`/`generationGuardFor` respeta los
+  permisos del miembro que creó la regla; una regla de grupo solo materializa
+  mientras su creador conserva `data.edit` (admin/member) en el grupo.
+- **Listado filtrable por contexto**: `RecurringContext` (all/personal/group) +
+  `recurringsInContext`; selector de contexto en `RecurringPage` y campo de
+  contexto en `RecurringForm` (solo grupos con permiso).
+- **Persistence**: `storageService` parsela `groupId`/`createdBy` (opcionales,
+  retrocompatibles con snapshots v1.
+- **Tests**: casos nuevos en `recurrenceService.test.ts`, `storageService.test.ts`
+  y `RecurringPage.test.tsx` (grupos).
+- [ADR-0009](docs/adr/0009-recurring-group-context.md)
+
+## 📋 Contexte de grupos en budgets/inversiones (HU-0.9) — EN CURSO (otro run)
+
+Ver cambios intermedios en `features/budgeting` e `features/investments`
+(grupos compartidos y ownership). A UNIR en el lanzamiento del contexto común.
 
 ## Próximos Pasos Recomendados
 

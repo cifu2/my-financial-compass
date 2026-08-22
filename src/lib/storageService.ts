@@ -1,6 +1,9 @@
 import type { Budget } from '../features/budgeting/types'
 import type { Category } from '../features/categories/types'
-import type { Investment } from '../features/investments/types'
+import type {
+  Investment,
+  InvestmentOwnership,
+} from '../features/investments/types'
 import type { RecurringTransaction } from '../features/recurring/types'
 import type { Locale } from './dates'
 
@@ -11,8 +14,11 @@ export interface PersistedState {
   transactions: Transaction[]
   categories: Category[]
   investments: Investment[]
+  investmentOwnerships: InvestmentOwnership[]
   budgets: Budget[]
   recurrings: RecurringTransaction[]
+  /** Active budget context group id (null/absent = personal view, HU-0.8). */
+  budgetGroupId?: string | null
 }
 
 export interface Transaction {
@@ -24,6 +30,10 @@ export interface Transaction {
   categoryId: string
   isRecurring?: boolean
   recurringId?: string
+  /** Group context this transaction belongs to (HU-0.8). */
+  groupId?: string
+  /** Owner user id; absent on legacy/demo rows (the viewer owns them). */
+  userId?: string
 }
 
 /** Storage key. Bump this only when the shape breaks the on-disk format. */
@@ -65,6 +75,8 @@ function transactionFrom(value: unknown): Transaction | null {
     categoryId,
     isRecurring: isBoolean(value.isRecurring) ? value.isRecurring : undefined,
     recurringId: asOptionalString(value.recurringId),
+    groupId: asOptionalString(value.groupId),
+    userId: asOptionalString(value.userId),
   }
 }
 
@@ -106,7 +118,16 @@ function investmentFrom(value: unknown): Investment | null {
     ticker: asOptionalString(value.ticker),
     currentValue: numOrUndefined(value.currentValue),
     gainLoss: numOrUndefined(value.gainLoss),
+    groupId: asOptionalString(value.groupId),
+    createdBy: asOptionalString(value.createdBy),
   }
+}
+
+function investmentOwnershipFrom(value: unknown): InvestmentOwnership | null {
+  if (!isRecord(value)) return null
+  const { investmentId, userId, percentage } = value
+  if (!isString(investmentId) || !isString(userId) || !isNumber(percentage)) return null
+  return { investmentId, userId, percentage }
 }
 
 function numOrUndefined(value: unknown): number | undefined {
@@ -115,13 +136,14 @@ function numOrUndefined(value: unknown): number | undefined {
 
 function budgetFrom(value: unknown): Budget | null {
   if (!isRecord(value)) return null
-  const { id, categoryId, limit, period } = value
+  const { id, categoryId, limit, period, groupId } = value
   if (!isString(id) || !isString(categoryId) || !isNumber(limit)) return null
   return {
     id,
     categoryId,
     limit,
     period: period === 'monthly' ? 'monthly' : 'monthly',
+    groupId: asOptionalString(groupId),
   }
 }
 
@@ -156,6 +178,8 @@ function recurringFrom(value: unknown): RecurringTransaction | null {
       categoryId: template.categoryId,
     },
     executionDay: numOrUndefined(value.executionDay),
+    groupId: asOptionalString(value.groupId),
+    createdBy: asOptionalString(value.createdBy),
     exceptions: isRecord(value.exceptions)
       ? (value.exceptions as RecurringTransaction['exceptions'])
       : undefined,
@@ -193,6 +217,10 @@ export function parsePersistedState(raw: string): PersistedState | null {
     Array.isArray(parsed.investments) ? parsed.investments : [],
     investmentFrom,
   )
+  const investmentOwnerships = dropNulls(
+    Array.isArray(parsed.investmentOwnerships) ? parsed.investmentOwnerships : [],
+    investmentOwnershipFrom,
+  )
   const budgets = dropNulls(
     Array.isArray(parsed.budgets) ? parsed.budgets : [],
     budgetFrom,
@@ -209,8 +237,10 @@ export function parsePersistedState(raw: string): PersistedState | null {
     transactions,
     categories,
     investments,
+    investmentOwnerships,
     budgets,
     recurrings,
+    budgetGroupId: asOptionalString(parsed.budgetGroupId) ?? null,
   }
 }
 

@@ -38,6 +38,7 @@ const validState: PersistedState = {
       currency: 'EUR',
     },
   ],
+  investmentOwnerships: [],
   budgets: [{ id: 'bg-1', categoryId: 'cat-1', limit: 300, period: 'monthly' }],
   recurrings: [
     {
@@ -82,6 +83,56 @@ describe('storageService', () => {
 
     it('returns null on invalid JSON', () => {
       expect(parsePersistedState('{ not json')).toBeNull()
+    })
+
+    it('round-trips group context fields (HU-0.8)', () => {
+      const state = JSON.parse(JSON.stringify(validState)) as PersistedState
+      state.recurrings[0] = {
+        ...state.recurrings[0],
+        groupId: 'grp-hogar',
+        createdBy: 'usr-ana',
+      }
+      state.transactions.push({
+        id: 'tx-grp',
+        concept: 'Hipoteca compartida',
+        amount: 900,
+        date: '2026-08-01',
+        type: 'expense',
+        categoryId: 'cat-1',
+        isRecurring: true,
+        recurringId: 'rec-1',
+        groupId: 'grp-hogar',
+      })
+      const parsed = parsePersistedState(JSON.stringify(state))
+      expect(parsed).not.toBeNull()
+      expect(parsed!.recurrings[0].groupId).toBe('grp-hogar')
+      expect(parsed!.recurrings[0].createdBy).toBe('usr-ana')
+      const groupTx = parsed!.transactions.find((t) => t.id === 'tx-grp')
+      expect(groupTx?.groupId).toBe('grp-hogar')
+    })
+
+    it('treats missing groupId as undefined for personal data', () => {
+      const parsed = parsePersistedState(JSON.stringify(validState))
+      expect(parsed!.recurrings[0].groupId).toBeUndefined()
+      expect(parsed!.transactions[0].groupId).toBeUndefined()
+    })
+
+    it('round-trips investment ownership rows and group meta', () => {
+      const state = JSON.parse(JSON.stringify(validState))
+      state.investments[0].groupId = 'grp-hogar'
+      state.investments[0].createdBy = 'usr-ana'
+      state.investmentOwnerships = [
+        { investmentId: 'inv-1', userId: 'usr-ana', percentage: 60 },
+        { investmentId: 'inv-1', userId: 'usr-jose', percentage: 40 },
+      ]
+      const { version: _v, savedAt: _s, ...rest } = state
+      const error = savePersistedState(rest)
+      expect(error).toBeNull()
+      const loaded = loadPersistedState()!
+      expect(loaded.investments[0].groupId).toBe('grp-hogar')
+      expect(loaded.investments[0].createdBy).toBe('usr-ana')
+      expect(loaded.investmentOwnerships).toHaveLength(2)
+      expect(loaded.investmentOwnerships[0].percentage).toBe(60)
     })
 
     it('returns null on incompatible schema version', () => {

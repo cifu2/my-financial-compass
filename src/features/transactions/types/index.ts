@@ -11,4 +11,6 @@ export interface Transaction {
   isRecurring?: boolean
   /** Id of the recurrence that generated this transaction. */
   recurringId?: string
+  /** Owner user id. Missing on legacy/demo rows; defaults to the current user. */
+  userId?: string
 }

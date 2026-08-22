@@ -1,6 +1,8 @@
 import type { Transaction } from '../../transactions/types'
 import type { Category } from '../../categories/types'
-import type { Investment } from '../../investments/types'
+import type { Investment, InvestmentOwnership } from '../../investments/types'
+import { holdingsForContext, shareValue } from '../../investments/services/portfolio'
+import type { PortfolioContext } from '../../investments/services/portfolio'
 import { monthKey } from '../../budgeting/services/budgetCalculator'
 import {
   convert,
@@ -225,6 +227,73 @@ export interface NetWorthHistoryPoint {
   liquidAssets: number
   investments: number
   total: number
+}
+
+/**
+ * Context-aware net worth (HU-0.9). Investments are filtered by the active
+ * context: personal contexts value each holding at the user's ownership
+ * share; group contexts value the whole group asset in the group currency.
+ */
+export function contextNetWorth(
+  transactions: readonly Transaction[],
+  investments: readonly Investment[],
+  ownerships: readonly InvestmentOwnership[],
+  context: PortfolioContext,
+  target: string = PRIMARY_CURRENCY,
+  rates: PartialRates = RATES_BASE_EUR,
+): NetWorth {
+  const holdings = holdingsForContext(investments, ownerships, context)
+  const investmentsAgg = contextInvestmentValue(holdings, rates, target)
+  const currency: CurrencyCode = isCurrencyCode(target) ? target : PRIMARY_CURRENCY
+  const liquid = liquidAssets(transactions)
+  return {
+    currency,
+    liquidAssets: liquid,
+    investments: round2(investmentsAgg.total),
+    unconvertedCount: investmentsAgg.unconvertedCount,
+    total: round2(liquid + investmentsAgg.total),
+  }
+}
+
+/** Per-holding breakdown respecting ownership shares in the active context. */
+export function contextNetWorthItems(
+  investments: readonly Investment[],
+  ownerships: readonly InvestmentOwnership[],
+  context: PortfolioContext,
+  currency: string = PRIMARY_CURRENCY,
+  rates: PartialRates = RATES_BASE_EUR,
+): NetWorthItem[] {
+  return holdingsForContext(investments, ownerships, context).map((holding) => {
+    const value = shareValue(holding)
+    const primaryValue = convert(value, holding.investment.currency, currency, rates)
+    return {
+      id: holding.investment.id,
+      name: holding.investment.name,
+      ticker: holding.investment.ticker,
+      type: holding.investment.type,
+      nativeValue: round2(value),
+      nativeCurrency: holding.investment.currency,
+      primaryValue: primaryValue === null ? null : round2(primaryValue),
+    }
+  })
+}
+
+function contextInvestmentValue(
+  holdings: ReturnType<typeof holdingsForContext>,
+  rates: PartialRates,
+  currency: string,
+): { total: number; unconvertedCount: number } {
+  let total = 0
+  let unconvertedCount = 0
+  for (const holding of holdings) {
+    const value = convert(shareValue(holding), holding.investment.currency, currency, rates)
+    if (value === null) {
+      unconvertedCount += 1
+      continue
+    }
+    total += value
+  }
+  return { total, unconvertedCount }
 }
 
 /**

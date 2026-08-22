@@ -521,6 +521,19 @@ a:focus-visible,
   gap: 1rem;
 }
 
+.budget-list-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.budget-member-note {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
 .budget-card {
   padding: 1rem 1.25rem;
 }
@@ -623,6 +636,62 @@ a:focus-visible,
   margin-top: 0.9rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--color-border);
+}
+
+/* Group budget member breakdown (HU-0.8) -------------------------------- */
+
+.budget-context {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.budget-context--compact {
+  justify-content: center;
+}
+
+.budget-context select {
+  max-width: 16rem;
+}
+
+.budget-card__breakdown {
+  margin-top: 0.85rem;
+  border-top: 1px dashed var(--color-border);
+  padding-top: 0.6rem;
+}
+
+.budget-card__breakdown summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.budget-breakdown-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.budget-breakdown-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-breakdown-name {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.budget-breakdown-value {
+  font-weight: 600;
 }
 
 .budget-card__actions .btn {

@@ -5,7 +5,9 @@ import { todayIso } from '../lib/dates'
 import type { Budget } from '../features/budgeting/types'
 import type { Category } from '../features/categories/types'
 import type { RecurringTransaction, OccurrenceOverride } from '../features/recurring/types'
-import { materializeDue } from '../features/recurring/services/recurrenceService'
+import { materializeDue, generationGuardFor } from '../features/recurring/services/recurrenceService'
+import { readSessionUser } from '../features/auth/services/authService'
+import { loadGroupSnapshot } from '../features/groups/services/groupStore'
 import { PREDEFINED_CATEGORIES } from '../features/categories/data/predefined'
 import {
   demoBudgets,
@@ -28,6 +30,10 @@ export interface Transaction {
   isRecurring?: boolean
   /** Id of the recurrence that generated this transaction. */
   recurringId?: string
+  /** Group context this transaction belongs to (group-shared rules, HU-0.8). */
+  groupId?: string
+  /** Owner user id; absent on legacy/demo rows (the viewer owns them). */
+  userId?: string
 }
 
 export interface Investment {
@@ -40,12 +46,24 @@ export interface Investment {
   investedAmount: number
   currency: string
   currentValue?: number
+  gainLoss?: number
+  /** Id of the group this investment belongs to (undefined = personal). */
+  groupId?: string
+  /** Id of the user who created the investment. */
+  createdBy?: string
+}
+
+export interface InvestmentOwnership {
+  investmentId: string
+  userId: string
+  /** Percentage of the group asset owned by this member (sum 100). */
+  percentage: number
 }
 
 export type UndoEntity =
   | { kind: 'transaction'; item: Transaction }
   | { kind: 'category'; item: Category }
-  | { kind: 'investment'; item: Investment }
+  | { kind: 'investment'; item: Investment; ownership?: InvestmentOwnership[] }
   | { kind: 'budget'; item: Budget }
 
 interface Storage {
@@ -53,14 +71,22 @@ interface Storage {
   transactions: Transaction[]
   categories: Category[]
   investments: Investment[]
+  investmentOwnerships: InvestmentOwnership[]
   budgets: Budget[]
   recurrings: RecurringTransaction[]
+  /** Active budget context group id (null/absent = personal view, HU-0.8). */
+  budgetGroupId: string | null
 }
 
 export interface AppState {
   locale: Locale
   setLocale: (locale: Locale) => void
   store: Storage
+  /**
+   * Selects the budget context: personal (null) or a group (its id).
+   * Budgets and the dashboard budget snapshot filter automatically (HU-0.8).
+   */
+  setBudgetGroupId: (groupId: string | null) => void
   /**
    * True while persisted state is being hydrated at boot. While booting, the
    * app shell renders a skeleton screen instead of eager section content so
@@ -72,7 +98,9 @@ export interface AppState {
   addTransaction: (t: Omit<Transaction, 'id'>) => void
   addCategory: (c: Omit<Category, 'id'>) => void
   updateCategory: (id: string, c: Partial<Omit<Category, 'id'>>) => void
-  addInvestment: (i: Omit<Investment, 'id'>) => void
+  addInvestment: (i: Omit<Investment, 'id'>, ownerships?: InvestmentOwnership[]) => void
+  updateInvestment: (id: string, patch: Partial<Omit<Investment, 'id'>>) => void
+  setInvestmentOwnerships: (investmentId: string, ownerships: InvestmentOwnership[]) => void
   addBudget: (b: Omit<Budget, 'id'>) => void
   updateBudget: (id: string, b: Omit<Budget, 'id'>) => void
   addRecurring: (r: Omit<RecurringTransaction, 'id'>) => void
@@ -135,11 +163,17 @@ export function AppStateProvider({
   const [investments, setInvestments] = useState<Investment[]>(
     initialStore?.investments ?? (seedDemo ? demoInvestments : []),
   )
+  const [investmentOwnerships, setInvestmentOwnerships] = useState<InvestmentOwnership[]>(
+    initialStore?.investmentOwnerships ?? [],
+  )
   const [budgets, setBudgets] = useState<Budget[]>(
     initialStore?.budgets ?? (seedDemo ? demoBudgets : []),
   )
   const [recurrings, setRecurrings] = useState<RecurringTransaction[]>(
     initialStore?.recurrings ?? [],
+  )
+  const [budgetGroupId, setBudgetGroupId] = useState<string | null>(
+    initialStore?.budgetGroupId ?? null,
   )
   const [storageError, setStorageError] = useState(false)
   // Tests that inject `initialStore` get a synchronous store; otherwise the
@@ -161,8 +195,10 @@ export function AppStateProvider({
         setTransactions(loaded.transactions)
         setCategories(loaded.categories)
         setInvestments(loaded.investments)
+        setInvestmentOwnerships(loaded.investmentOwnerships ?? [])
         setBudgets(loaded.budgets)
         setRecurrings(loaded.recurrings)
+        setBudgetGroupId(loaded.budgetGroupId ?? null)
       }
       setIsBooting(false)
     }, bootDelayMs)
@@ -194,21 +230,29 @@ export function AppStateProvider({
       transactions,
       categories,
       investments,
+      investmentOwnerships,
       budgets,
       recurrings,
+      budgetGroupId,
     })
     // Persist on state change; reporting the write result is a side effect
     // of the same effect, so the setState here is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStorageError(error !== null)
-  }, [locale, transactions, categories, investments, budgets, recurrings, initialStore, isBooting])
+  }, [locale, transactions, categories, investments, investmentOwnerships, budgets, recurrings, budgetGroupId, initialStore, isBooting])
 
   const syncDue = useMemo(
     () => (): number => {
+      // Group rules (HU-0.8) only materialize while their creator keeps
+      // `data.edit` in the group; the permission guard reads the persisted
+      // session + group snapshot, exactly like any service would.
+      const user = readSessionUser()
+      const snapshot = loadGroupSnapshot()
       const { generated, nextExecutions } = materializeDue(
         recurringsRef.current,
         transactionsRef.current,
         todayIso(),
+        { canGenerate: generationGuardFor(snapshot, user?.id ?? '') },
       )
       if (generated.length === 0) return 0
       if (generated.length > 0) {
@@ -241,16 +285,50 @@ export function AppStateProvider({
     setLocale,
     storageError,
     isBooting,
-    store: { locale, transactions, categories, investments, budgets, recurrings },
-    addTransaction: (t) =>
-      setTransactions((prev) => [...prev, { ...t, id: now('tx') }]),
+    store: {
+      locale,
+      transactions,
+      categories,
+      investments,
+      investmentOwnerships,
+      budgets,
+      recurrings,
+      budgetGroupId,
+    },
+    setBudgetGroupId: (groupId) => setBudgetGroupId(groupId),
+    addTransaction: (t) => {
+      // Stamp the owner so personal budgets only count own spending and group
+      // budgets can break down consumption per member (HU-0.8).
+      const owner = readSessionUser()?.id
+      const stamped: Transaction = {
+        ...t,
+        id: now('tx'),
+        userId: t.userId === undefined ? (owner ?? undefined) : t.userId,
+      }
+      setTransactions((prev) => [...prev, stamped])
+    },
     addCategory: (c) => setCategories((prev) => [...prev, { ...c, id: now('cat') }]),
     updateCategory: (id, c) =>
       setCategories((prev) =>
         prev.map((x) => (x.id === id ? { ...x, ...c } : x)),
       ),
-    addInvestment: (i) =>
-      setInvestments((prev) => [...prev, { ...i, id: now('inv') }]),
+    addInvestment: (i, ownerships) => {
+      const id = now('inv')
+      setInvestments((prev) => [...prev, { ...i, id }])
+      if (ownerships && ownerships.length > 0) {
+        setInvestmentOwnerships((prev) => [
+          ...prev.filter((o) => o.investmentId !== id),
+          ...ownerships.map((o) => ({ ...o, investmentId: id })),
+        ])
+      }
+    },
+    updateInvestment: (id, patch) =>
+      setInvestments((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x))),
+    setInvestmentOwnerships: (investmentId, ownerships) =>
+      setInvestmentOwnerships((prev) => [
+        ...prev.filter((o) => o.investmentId !== investmentId),
+        ...ownerships,
+      ]),
     addBudget: (b) => setBudgets((prev) => [...prev, { ...b, id: now('bg') }]),
     updateBudget: (id, b) =>
       setBudgets((prev) => prev.map((x) => (x.id === id ? { ...x, ...b } : x))),
@@ -281,6 +359,9 @@ export function AppStateProvider({
         setCategories((prev) => prev.filter((x) => x.id !== entity.item.id))
       } else if (entity.kind === 'investment') {
         setInvestments((prev) => prev.filter((x) => x.id !== entity.item.id))
+        setInvestmentOwnerships((prev) =>
+          prev.filter((o) => o.investmentId !== entity.item.id),
+        )
       } else {
         setBudgets((prev) => prev.filter((x) => x.id !== entity.item.id))
       }
@@ -292,6 +373,11 @@ export function AppStateProvider({
         setCategories((prev) => [...prev, entity.item])
       } else if (entity.kind === 'investment') {
         setInvestments((prev) => [...prev, entity.item])
+        const ownership = entity.ownership ?? []
+        setInvestmentOwnerships((prev) => [
+          ...prev.filter((o) => o.investmentId !== entity.item.id),
+          ...ownership,
+        ])
       } else {
         setBudgets((prev) => [...prev, entity.item])
       }
@@ -301,6 +387,7 @@ export function AppStateProvider({
       setCategories(demoCategories)
       setBudgets(demoBudgets)
       setInvestments(demoInvestments)
+      setInvestmentOwnerships([])
     },
     syncDue,
   }

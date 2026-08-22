@@ -7,13 +7,19 @@ import { UndoToast } from '../components/UndoToast'
 import { useUndo } from '../hooks/useUndo'
 import { useAppState } from '../state/AppState'
 import { BudgetDashboard } from '../features/budgeting/components/BudgetDashboard'
+import { BudgetContextSelector } from '../features/budgeting/components/BudgetContextSelector'
 import {
   buildBudgetRows,
   spentForCategory,
   summarize,
   type SpendingInput,
 } from '../features/budgeting/services/budgetCalculator'
+import {
+  groupBudgetOptions,
+  groupMembers,
+} from '../features/budgeting/services/budgetScope'
 import type { Budget, BudgetPeriod } from '../features/budgeting/types'
+import { readSessionUser } from '../features/auth/services/authService'
 import {
   required,
   mustBeNumber,
@@ -57,6 +63,13 @@ export default function BudgetsPage() {
     useAppState()
   const t = (key: UIKey) => translate(locale, key)
 
+  // HU-0.8: the active context (personal vs group) scopes what is shown and
+  // what new budgets belong to.
+  const groupId = store.budgetGroupId ?? null
+  const contextGroupId = groupId
+  const isGroupContext = contextGroupId !== null
+  const currentUserId = readSessionUser()?.id ?? null
+
   const month = currentMonthKey()
   const prevMonth = previousMonthKey()
 
@@ -73,17 +86,48 @@ export default function BudgetsPage() {
     return (id: string) => map.get(id) ?? null
   }, [store.categories])
 
+  const options = useMemo(
+    () =>
+      isGroupContext && contextGroupId !== null
+        ? groupBudgetOptions(contextGroupId, currentUserId)
+        : { currentUserId, memberIds: undefined, memberNames: undefined },
+    [isGroupContext, groupId, currentUserId], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  const context = useMemo(
+    () =>
+      ({
+        kind: isGroupContext ? 'group' : 'personal',
+        groupId: contextGroupId,
+      }) as const,
+    [isGroupContext, contextGroupId],
+  )
+
   const expenseInputs: SpendingInput[] = useMemo(
     () =>
       store.transactions
-        .filter((t) => t.type === 'expense')
-        .map((t) => ({ amount: t.amount, date: t.date, categoryId: t.categoryId })),
+        .filter((tr) => tr.type === 'expense')
+        .map((tr) => ({
+          amount: tr.amount,
+          date: tr.date,
+          categoryId: tr.categoryId,
+          userId: tr.userId,
+          groupId: tr.groupId,
+        })),
     [store.transactions],
   )
 
   const rows = useMemo(
-    () => buildBudgetRows(store.budgets, expenseInputs, () => true, month, categoryNameFor),
-    [store.budgets, expenseInputs, month, categoryNameFor],
+    () =>
+      buildBudgetRows(
+        store.budgets,
+        expenseInputs,
+        () => true,
+        month,
+        categoryNameFor,
+        { context, currentUserId: options.currentUserId, memberIds: options.memberIds, memberNames: options.memberNames },
+      ),
+    [store.budgets, expenseInputs, month, categoryNameFor, context, options],
   )
 
   const summary = useMemo(() => summarize(rows), [rows])
@@ -91,11 +135,17 @@ export default function BudgetsPage() {
   const previousSpentByBudgetId = useMemo(() => {
     const map = new Map<string, number>()
     for (const budget of store.budgets) {
-      const spent = spentForCategory(expenseInputs, budget.categoryId, prevMonth, () => true)
+      const spent = spentForCategory(
+        expenseInputs,
+        budget.categoryId,
+        prevMonth,
+        () => true,
+        { context, currentUserId: options.currentUserId, memberIds: options.memberIds },
+      )
       if (spent > 0) map.set(budget.id, spent)
     }
     return map
-  }, [store.budgets, expenseInputs, prevMonth])
+  }, [store.budgets, expenseInputs, prevMonth, context, options])
 
   // ---- budget form (create + edit)
   const [form, setForm] = useState<BudgetForm>(EMPTY_FORM)
@@ -118,7 +168,10 @@ export default function BudgetsPage() {
 
   function duplicateCategorySelected(): boolean {
     return store.budgets.some(
-      (b) => b.categoryId === form.categoryId && b.id !== editingId,
+      (b) =>
+        b.categoryId === form.categoryId &&
+        b.id !== editingId &&
+        (b.groupId ?? null) === contextGroupId,
     )
   }
 
@@ -155,6 +208,7 @@ export default function BudgetsPage() {
       categoryId: form.categoryId,
       limit: Number(form.limit.replace(',', '.')),
       period: form.period as BudgetPeriod,
+      groupId: contextGroupId,
     }
     if (editingId) {
       updateBudget(editingId, payload)
@@ -175,11 +229,18 @@ export default function BudgetsPage() {
     cancelLabel: t('confirm.cancel'),
   }
 
+  const memberLabel = isGroupContext
+    ? groupMembers(contextGroupId!)
+      .map((m) => m.name)
+      .join(', ')
+    : null
+
   return (
     <Page title={t('section.budgets')}>
       <div className="stack">
         <div className="panel">
           <h2>{editingId ? t('form.edit') : t('common.budget')}</h2>
+          <BudgetContextSelector />
           <form onSubmit={saveBudget} noValidate>
             <div className="form-row">
               <SelectField
@@ -238,11 +299,21 @@ export default function BudgetsPage() {
         </div>
 
         <div className="stack">
-          <h2>{t('section.budgets')}</h2>
+          <div className="budget-list-header">
+            <h2>{isGroupContext ? t('budget.groupBudgets') : t('section.budgets')}</h2>
+            {isGroupContext && memberLabel && (
+              <span className="budget-member-note">
+                {t('budget.byMember')}: {memberLabel}
+              </span>
+            )}
+          </div>
           <BudgetDashboard
             rows={rows}
             summary={summary}
             previousSpentByBudgetId={previousSpentByBudgetId}
+            isGroup={isGroupContext}
+            breakdownLabel={t('budget.byMember')}
+            emptyText={isGroupContext ? t('budget.noGroupBudgets') : undefined}
             onEdit={startEdit}
             onDelete={(b) => setConfirming(b)}
           />

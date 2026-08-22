@@ -34,6 +34,7 @@ function seedStore(budgets: Budget[] = []) {
     transactions: [],
     categories: PREDEFINED_CATEGORIES,
     investments: [],
+    investmentOwnerships: [],
     budgets,
     recurrings: [],
   })
