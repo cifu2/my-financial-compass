@@ -64,6 +64,9 @@ src/
 │   ├── investments/       # Módulo 4
 │   │   └── types/
 │   └── dashboard/         # Módulo 5
+│       ├── components/    # Widgets: KPIs, desglose, recientes, patrimonio, histórico
+│       ├── services/      # Cálculos mensuales, patrimonio y conversión de divisas
+│       ├── data/          # Dataset de demostración (opt-in)
 │       └── types/
 ├── hooks/
 │   └── useUndo.ts         # Historial de undo (con OC template)

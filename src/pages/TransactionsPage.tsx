@@ -1,11 +1,14 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Page } from '../components/Page'
 import { TextField, SelectField } from '../components/FormField'
 import { ConfirmDialog, type ConfirmStrings } from '../components/ConfirmDialog'
 import { UndoToast } from '../components/UndoToast'
 import { useUndo } from '../hooks/useUndo'
-import { useAppState, type Transaction, type Category } from '../state/AppState'
+import { useAppState, type Transaction } from '../state/AppState'
+import { CategoryManager } from '../features/categories/components/CategoryManager'
+import { CategoryPicker } from '../features/categories/components/CategoryPicker'
+import { categoriesForType } from '../features/categories/services/categoryService'
 import {
   required,
   maxLength,
@@ -33,10 +36,9 @@ const AMOUNT: Validator[] = [required(), mustBeNumber(), greaterThan(0)]
 const TYPE: Validator[] = [requiredSelect()]
 const CATEGORY: Validator[] = [requiredSelect()]
 const DATE: Validator[] = [required(), isValidDate(), notInFuture()]
-const CAT_NAME: Validator[] = [required(), maxLength(40)]
 
 export default function TransactionsPage() {
-  const { locale, store, addTransaction, addCategory, remove, restore } =
+  const { locale, store, addTransaction, remove, restore } =
     useAppState()
   const t = (key: UIKey) => translate(locale, key)
 
@@ -126,29 +128,10 @@ export default function TransactionsPage() {
     savedTimer.current = window.setTimeout(() => setSavedToast(null), 6000)
   }
 
-  // ---- category form
-  const [catName, setCatName] = useState('')
-  const [catAttempted, setCatAttempted] = useState(false)
-
-  function catErrLocal(): string | undefined {
-    const error = validateField(catName, CAT_NAME, locale)
-    return catAttempted && error ? error : undefined
-  }
-
-  function saveCategory(e: FormEvent) {
-    e.preventDefault()
-    setCatAttempted(true)
-    if (validateField(catName, CAT_NAME, locale)) return
-    addCategory({ name: catName.trim(), type: 'both', isActive: true })
-    setCatName('')
-    setCatAttempted(false)
-  }
-
   // ---- delete + undo
   const txUndo = useUndo<Transaction>(8000)
-  const catUndo = useUndo<Category>(8000)
   const [confirming, setConfirming] = useState<{
-    kind: 'transaction' | 'category'
+    kind: 'transaction'
     id: string
     label: string
   } | null>(null)
@@ -156,31 +139,25 @@ export default function TransactionsPage() {
   function onConfirmed() {
     if (!confirming) return
     const { kind, id, label } = confirming
-    if (kind === 'transaction') {
-      const item = store.transactions.find((x) => x.id === id)
-      if (item) {
-        remove({ kind, item })
-        txUndo.push(item, label)
-      }
-    } else {
-      const item = store.categories.find((x) => x.id === id)
-      if (item) {
-        remove({ kind, item })
-        catUndo.push(item, label)
-      }
+    const item = store.transactions.find((x) => x.id === id)
+    if (item) {
+      remove({ kind, item })
+      txUndo.push(item, label)
     }
     setConfirming(null)
   }
 
   const confirmStrings: ConfirmStrings = {
     title: t('confirm.deleteTitle'),
-    message:
-      confirming?.kind === 'category'
-        ? t('category.deleteTitle')
-        : t('transaction.deleteTitle'),
+    message: t('transaction.deleteTitle'),
     confirmLabel: t('confirm.delete'),
     cancelLabel: t('confirm.cancel'),
   }
+
+  const categoryOptions = useMemo(
+    () => categoriesForType(store.categories, tx.type as 'income' | 'expense' | ''),
+    [store.categories, tx.type],
+  )
 
   return (
     <Page title={t('section.transactions')}>
@@ -228,20 +205,16 @@ export default function TransactionsPage() {
               />
             </div>
             <div className="form-row">
-              <SelectField
+              <CategoryPicker
                 label={t('fld.category')}
                 name="categoryId"
                 required
                 value={tx.categoryId}
                 error={txErr('categoryId')}
-                onChange={(e) => setTxField('categoryId', e.target.value)}
+                onChange={(value) => setTxField('categoryId', value)}
                 onBlur={() => setTxTouched((p) => ({ ...p, categoryId: true }))}
-                options={[
-                  { value: '', label: '—' },
-                  ...store.categories
-                    .filter((c) => c.isActive)
-                    .map((c) => ({ value: c.id, label: c.name })),
-                ]}
+                categories={categoryOptions}
+                locale={locale}
               />
               <TextField
                 label={t('fld.date')}
@@ -318,54 +291,7 @@ export default function TransactionsPage() {
           )}
         </div>
 
-        <div className="panel">
-          <h2>{t('section.categories')}</h2>
-          <form onSubmit={saveCategory} noValidate>
-            <div className="form-row">
-              <TextField
-                label={t('fld.name')}
-                name="catName"
-                required
-                value={catName}
-                error={catErrLocal()}
-                onChange={(e) => setCatName(e.target.value)}
-                maxLength={40}
-              />
-            </div>
-            <div className="form-actions">
-              <button type="submit" className="btn btn--primary">
-                {t('form.save')}
-              </button>
-            </div>
-          </form>
-          {store.categories.length === 0 ? (
-            <p className="text-muted">{t('common.empty')}</p>
-          ) : (
-            <ul className="category-list">
-              {store.categories.map((item) => (
-                <li key={item.id} className="category-row">
-                  <span>
-                    {item.name}
-                    <span className="text-muted"> · {item.type}</span>
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn--danger"
-                    onClick={() =>
-                      setConfirming({
-                        kind: 'category',
-                        id: item.id,
-                        label: item.name,
-                      })
-                    }
-                  >
-                    {t('common.delete')}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <CategoryManager />
       </div>
 
       <ConfirmDialog
@@ -392,7 +318,7 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      {txUndo.snapshots.map((snap, index) => (
+{txUndo.snapshots.map((snap, index) => (
         <UndoToast
           key={snap.id}
           entry={snap}
@@ -400,7 +326,7 @@ export default function TransactionsPage() {
           title={t('undo.title')}
           actionLabel={t('undo.action')}
           dismissLabel={t('undo.dismiss')}
-onUndo={(i) => {
+          onUndo={(i) => {
             const s = txUndo.snapshots[i]
             if (s) {
               restore({ kind: 'transaction', item: s.item })
@@ -410,27 +336,6 @@ onUndo={(i) => {
           onDismiss={(i) => {
             const s = txUndo.snapshots[i]
             if (s) txUndo.clear(s.id)
-          }}
-        />
-      ))}
-      {catUndo.snapshots.map((snap, index) => (
-        <UndoToast
-          key={snap.id}
-          entry={snap}
-          index={index}
-          title={t('undo.title')}
-          actionLabel={t('undo.action')}
-          dismissLabel={t('undo.dismiss')}
-          onUndo={(i) => {
-            const s = catUndo.snapshots[i]
-            if (s) {
-              restore({ kind: 'category', item: s.item as Category })
-              catUndo.clear(s.id)
-            }
-          }}
-          onDismiss={(i) => {
-            const s = catUndo.snapshots[i]
-            if (s) catUndo.clear(s.id)
           }}
         />
       ))}

@@ -4,9 +4,11 @@ import { AppStateProvider, type Category } from '../state/AppState'
 import TransactionsPage from '../pages/TransactionsPage'
 import { formatDate } from '../lib/dates'
 
-function renderPage(initialStore?: { categories: Category[] }) {
+function renderPage(initialStore?: { categories?: Category[] }) {
   return render(
-    <AppStateProvider initialStore={initialStore}>
+    <AppStateProvider
+      initialStore={{ categories: initialStore?.categories ?? [] }}
+    >
       <TransactionsPage />
     </AppStateProvider>,
   )
@@ -122,15 +124,18 @@ describe('TransactionsPage (MYF-3 manual entry + validation + confirm + undo)', 
   it('creates a transaction, asks for confirmation, and restores it via undo', () => {
     const r = renderPage()
 
-    // 1) add a category so the transaction form has an option
+    // 1) add a custom category so the transaction form has an option
     const forms = formsOf(r.container)
     const txForm_ = forms[0]
     const catForm = forms[1] as HTMLElement
     fireEvent.change(within(catForm).getByLabelText(/Nombre|Name/), {
-      target: { value: 'Alimentación' },
+      target: { value: 'Mascotas' },
+    })
+    fireEvent.change(catForm.querySelector('select[name="categoryType"]') as HTMLSelectElement, {
+      target: { value: 'expense' },
     })
     fireEvent.click(within(catForm).getByRole('button', { name: /Guardar|Save/ }))
-    expect(screen.getAllByText(/Alimentación/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Mascotas/).length).toBeGreaterThan(0)
 
     // 2) add a transaction using that category
     fireEvent.change(within(txForm_).getByLabelText(/Descripción|Description/), {
@@ -146,7 +151,7 @@ describe('TransactionsPage (MYF-3 manual entry + validation + confirm + undo)', 
       target: {
         value: screen
           .getAllByRole('option')
-          .find((o) => (o as HTMLOptionElement).text === 'Alimentación')
+          .find((o) => (o as HTMLOptionElement).text === 'Mascotas')
           ?.getAttribute('value') ?? 'x',
       },
     })

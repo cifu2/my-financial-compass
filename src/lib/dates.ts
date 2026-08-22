@@ -70,3 +70,31 @@ export function toInputDate(value: Date | string | null | undefined): string {
   const d = date.getUTCDate().toString().padStart(2, '0')
   return `${y}-${m}-${d}`
 }
+
+/** Returns an ISO yyyy-MM-dd value from any accepted date value. */
+export function toIsoDate(value: Date | string | null | undefined): string {
+  return toInputDate(value)
+}
+
+/** ISO date for today, in the app's local time. */
+export function todayIso(): string {
+  const now = new Date()
+  const y = now.getFullYear().toString().padStart(4, '0')
+  const m = (now.getMonth() + 1).toString().padStart(2, '0')
+  const d = now.getDate().toString().padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/**
+ * Human-friendly month label for an ISO `yyyy-mm` key, localized
+ * (Spanish → "mayo de 2026", English → "May 2026").
+ */
+export function monthLabel(month: string, locale: Locale = 'es'): string {
+  const [y, m] = month.split('-').map(Number)
+  if (!y || !m) return month
+  const date = new Date(Date.UTC(y, m - 1, 1))
+  return new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
+}
