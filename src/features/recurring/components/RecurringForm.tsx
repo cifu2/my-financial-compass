@@ -150,7 +150,7 @@ export function RecurringForm({
           type: '',
           categoryId: '',
           frequency: '',
-          startDate: formatDate(new Date(), locale),
+          startDate: formatDate(todayIso(), locale),
           endDate: '',
           executionDay: '',
           groupId: '',

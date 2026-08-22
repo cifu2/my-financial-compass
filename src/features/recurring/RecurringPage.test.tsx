@@ -38,7 +38,14 @@ function configForm(): HTMLElement {
 }
 
 function daysFromNow(days: number): string {
-  return formatDate(new Date(Date.now() + days * 24 * 60 * 60 * 1000), 'es')
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  const iso = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+  return formatDate(iso, 'es')
 }
 
 function fillValidConfig(form: HTMLElement, concept: string, amount = '15,00') {

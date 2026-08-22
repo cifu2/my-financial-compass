@@ -3,7 +3,7 @@ import { render, screen, fireEvent, within, type RenderResult } from '@testing-l
 import { AppStateProvider, type Category } from '../state/AppState'
 import { AuthProvider } from '../features/auth/state/AuthContext'
 import TransactionsPage from '../pages/TransactionsPage'
-import { formatDate } from '../lib/dates'
+import { formatDate, todayIso } from '../lib/dates'
 
 /**
  * The shared-expense form (HU-0.7) reads the current session (useAuth) to
@@ -31,8 +31,19 @@ function txForm(r: RenderResult): HTMLElement {
   return formsOf(r.container)[0]
 }
 
+function dateIso(iso: string): string {
+  return formatDate(iso, 'es')
+}
+
 function futureDate(): string {
-  return formatDate(new Date(Date.now() + 24 * 60 * 60 * 1000), 'es')
+  const date = new Date()
+  date.setDate(date.getDate() + 1)
+  const iso = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+  return formatDate(iso, 'es')
 }
 
 describe('TransactionsPage (MYF-3 manual entry + validation + confirm + undo)', () => {
@@ -55,7 +66,7 @@ describe('TransactionsPage (MYF-3 manual entry + validation + confirm + undo)', 
   it('defaults the date to today in DD/MM/YYYY', () => {
     renderPage()
     const dateInput = screen.getByLabelText(/Fecha|Date/) as HTMLInputElement
-    expect(dateInput.value).toBe(formatDate(new Date(), 'es'))
+    expect(dateInput.value).toBe(dateIso(todayIso()))
   })
 
   it('shows a date error for an impossible date', () => {
@@ -165,7 +176,7 @@ describe('TransactionsPage (MYF-3 manual entry + validation + confirm + undo)', 
       },
     })
     fireEvent.change(within(txForm_).getByLabelText(/Fecha|Date/), {
-      target: { value: formatDate(new Date(), 'es') },
+      target: { value: dateIso(todayIso()) },
     })
     fireEvent.click(within(txForm_).getByRole('button', { name: /Guardar|Save/ }))
     expect(screen.getByText(/Pan/)).toBeInTheDocument()

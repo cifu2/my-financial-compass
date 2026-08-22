@@ -24,7 +24,7 @@ import {
   validateField,
   type Validator,
 } from '../lib/validation'
-import { formatDate } from '../lib/dates'
+import { formatDate, todayIso } from '../lib/dates'
 import { translate, type UIKey } from '../lib/i18n'
 
 interface TxForm {
@@ -64,7 +64,7 @@ export default function TransactionsPage() {
     amount: '',
     type: '',
     categoryId: '',
-    date: formatDate(new Date(), locale),
+    date: formatDate(todayIso(), locale),
     groupId: '',
     shared: false,
   }))
@@ -112,7 +112,7 @@ export default function TransactionsPage() {
       amount: '',
       type: '',
       categoryId: '',
-      date: formatDate(new Date(), locale),
+      date: formatDate(todayIso(), locale),
       groupId: '',
       shared: false,
     })

@@ -40,9 +40,7 @@ export function parseDate(value: string | undefined | null): Date | null {
 export function isFutureOnly(value: string | undefined | null): Date | null {
   const date = parseDate(value)
   if (!date) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return date >= today ? date : null
+  return toIsoDate(date) >= todayIso() ? date : null
 }
 
 /**

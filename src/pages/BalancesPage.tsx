@@ -20,7 +20,7 @@ import {
   notInFuture,
   type Validator,
 } from '../lib/validation'
-import { formatDate, toIsoDate, type Locale } from '../lib/dates'
+import { formatDate, todayIso, toIsoDate, type Locale } from '../lib/dates'
 import { formatMoney } from '../lib/money'
 import { translate, type UIKey } from '../lib/i18n'
 import { groupActivityHref } from '../router'
@@ -43,7 +43,7 @@ function blankSettlementForm(locale: Locale): SettlementForm {
     fromUserId: '',
     toUserId: '',
     amount: '',
-    date: formatDate(new Date(), locale),
+    date: formatDate(todayIso(), locale),
     note: '',
   }
 }
@@ -154,7 +154,7 @@ export default function BalancesPage() {
       fromUserId: debt.debtorId,
       toUserId: debt.creditorId,
       amount: debt.amount.toFixed(2).replace('.', ','),
-      date: formatDate(new Date(), locale),
+      date: formatDate(todayIso(), locale),
       note: '',
     })
   }

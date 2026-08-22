@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { formatDate } from './dates'
 import {
   required,
   requiredSelect,
@@ -69,19 +70,19 @@ describe('validation lib (MYF-8)', () => {
 
   it('rejects dates in the future but accepts today and past', () => {
     const today = new Date()
-    today.setUTCHours(0, 0, 0, 0)
-    const fmt = (date: Date) => {
-      const y = date.getUTCFullYear()
-      const m = String(date.getUTCMonth() + 1).padStart(2, '0')
-      const d = String(date.getUTCDate()).padStart(2, '0')
-      return `${d}/${m}/${y}`
-    }
-    const tomorrow = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1))
-    const yesterday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1))
+    const iso = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const fmt = (date: Date) =>
+      formatDate(`${iso(date)}`, 'es')
+    const todayDate = new Date(`${iso(today)}T00:00:00`)
+    const tomorrow = new Date(todayDate)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const yesterday = new Date(todayDate)
+    yesterday.setDate(yesterday.getDate() - 1)
     expect(notInFuture()(fmt(tomorrow), { locale: 'es' })).toBe(
       'La fecha no puede ser posterior a hoy.',
     )
-    expect(notInFuture()(fmt(today), { locale: 'es' })).toBeNull()
+    expect(notInFuture()(fmt(todayDate), { locale: 'es' })).toBeNull()
     expect(notInFuture()(fmt(yesterday), { locale: 'en' })).toBeNull()
     expect(notInFuture()('', { locale: 'es' })).toBeNull()
   })
