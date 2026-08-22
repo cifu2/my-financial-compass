@@ -64,6 +64,21 @@ Cuando encuentres algo raro, envíalo según
 - [ ] Editar y eliminar inversiones (confirmación).
 - [ ] Si falta el tipo de cambio, se indica claramente y se excluye del total.
 
+## 5b. Grupos: actividad y borrado (HU-0.11 / HU-0.12)
+
+- [ ] En **Configuración → Grupos** se ven mis grupos con mi rol y nº de miembros.
+- [ ] Un gasto/liquidación del grupo se refleja en **Actividad del grupo**
+  ("Luis añadió Supermercado 82,00 €", "Ana liquidó 45,00 € a José").
+- [ ] La actividad aparece de **más reciente a más antigua**.
+- [ ] Se puede filtrar por **miembro** y por **tipo de acción**.
+- [ ] El enlace a la actividad existe desde Balances y desde Configuración.
+- [ ] Como admin, puedo **borrar un grupo** desde Configuración → Grupos.
+- [ ] El diálogo exige **doble confirmación**: elegir archivar/eliminar + aviso
+      a los miembros, y luego **teclear el nombre del grupo**.
+- [ ] **Archivar** conserva datos y actividad; el grupo aparece como archivado y
+      se puede **restaurar**.
+- [ ] **Eliminar** borra el grupo y sus datos compartidos de forma definitiva.
+
 ---
 
 ## 6. Transversal (toda la app)
