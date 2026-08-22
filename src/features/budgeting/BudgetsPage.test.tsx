@@ -6,7 +6,7 @@ import type { Budget } from './types'
 import { buildSeededSnapshot } from '../auth/services/authService'
 import { AUTH_STORAGE_KEY } from '../auth/services/authStore'
 import { seedGroupSnapshot } from '../groups/data/seeds'
-import { GROUP_STORAGE_KEY, persistGroupSnapshot } from '../groups/services/groupStore'
+import { persistGroupSnapshot } from '../groups/services/groupStore'
 
 /** An ISO yyyy-mm-dd date for a fixed calendar day of the current month. */
 function thisMonth(day: number): string {

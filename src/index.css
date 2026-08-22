@@ -1586,3 +1586,139 @@ a:focus-visible,
   height: 1.1rem;
   accent-color: var(--color-primary);
 }
+
+/* ------------------------------------------------------------------ */
+/* Group activity (HU-0.11) and group management (HU-0.12)            */
+/* ------------------------------------------------------------------ */
+
+.activity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.9rem;
+  padding: 0.6rem 0;
+}
+
+.activity-filters .form-field {
+  margin-bottom: 0;
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.activity-row {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.7rem 0.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.activity-row__date {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  min-width: 7rem;
+}
+
+.activity-row__text {
+  color: var(--color-text);
+}
+
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+}
+
+.notice--muted {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  border-left: 4px solid var(--color-border);
+}
+
+.group-list {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.group-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 0.25rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.group-row__name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.group-row__name small {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.group-row__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.group-delete__fieldset {
+  border: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.group-delete__fieldset legend {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.group-delete__option,
+.group-delete__notify {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  padding: 0.7rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.group-delete__option input,
+.group-delete__notify input {
+  margin-top: 0.2rem;
+  accent-color: var(--color-primary);
+}
+
+.group-delete__option span,
+.group-delete__notify span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.group-delete__option small,
+.group-delete__notify small {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.group-panel h3 {
+  margin: 0.5rem 0 0.35rem;
+}

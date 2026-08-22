@@ -23,6 +23,7 @@ import {
 import { formatDate, toIsoDate, type Locale } from '../lib/dates'
 import { formatMoney } from '../lib/money'
 import { translate, type UIKey } from '../lib/i18n'
+import { groupActivityHref } from '../router'
 
 interface SettlementForm {
   fromUserId: string
@@ -183,6 +184,11 @@ export default function BalancesPage() {
               ]}
             />
           </div>
+          {groupId !== '' && (
+            <a className="btn btn--secondary" href={groupActivityHref(groupId)}>
+              {t('group.viewActivity')}
+            </a>
+          )}
         </div>
 
         {groupId === '' ? (
@@ -308,7 +314,7 @@ export default function BalancesPage() {
                 )}
                 <div className="form-actions">
                   <button type="submit" className="btn btn--primary">
-                    {t('balances.settleTitle')}
+                    {t('balances.settleSubmit')}
                   </button>
                 </div>
               </form>

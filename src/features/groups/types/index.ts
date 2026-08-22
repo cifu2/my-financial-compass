@@ -37,6 +37,12 @@ export interface Group {
   createdBy: string
   createdAt: string
   /**
+   * Set when the group was archived (HU-0.12). Archived groups keep their
+   * shared data and activity trail but disappear from the active selectors;
+   * only an admin may restore or delete them.
+   */
+  archivedAt?: string
+  /**
    * Per-group configuration (e.g. whether members manage budgets/investments,
    * HU-0.10). Absent means the permission fallback of the role applies.
    */
@@ -82,6 +88,11 @@ export interface GroupSnapshot {
   groups: Group[]
   members: GroupMember[]
   invitations: Invitation[]
+  /**
+   * Append-only audit trail of the group's actions (HU-0.11). Each row is
+   * written by the domain services; the UI only reads and filters it.
+   */
+  activities: GroupActivity[]
 }
 
 /** Append-only view of a membership row joined with the current profile. */
@@ -138,6 +149,88 @@ export function isValidInvitationStatus(value: unknown): value is InvitationStat
     value === 'expired'
   )
 }
+
+// ---------------------------------------------------------------------------
+// Group activity (HU-0.11)
+// ---------------------------------------------------------------------------
+
+/**
+ * The kinds of actions the group registers in its activity trail. The UI
+ * filters on this value and the message renderer maps it to a sentence.
+ */
+export type GroupActivityKind =
+  | 'group_created'
+  | 'group_updated'
+  | 'group_archived'
+  | 'group_restored'
+  | 'group_deleted'
+  | 'group_delete_notice'
+  | 'member_added'
+  | 'member_removed'
+  | 'role_changed'
+  | 'invitation_sent'
+  | 'transaction_added'
+  | 'transaction_removed'
+  | 'split_set'
+  | 'settlement_added'
+  | 'settlement_removed'
+  | 'recurring_added'
+  | 'recurring_removed'
+  | 'investment_added'
+  | 'investment_updated'
+  | 'investment_removed'
+  | 'budget_added'
+  | 'budget_removed'
+
+export const GROUP_ACTIVITY_KINDS: readonly GroupActivityKind[] = [
+  'group_created',
+  'group_updated',
+  'group_archived',
+  'group_restored',
+  'group_deleted',
+  'group_delete_notice',
+  'member_added',
+  'member_removed',
+  'role_changed',
+  'invitation_sent',
+  'transaction_added',
+  'transaction_removed',
+  'split_set',
+  'settlement_added',
+  'settlement_removed',
+  'recurring_added',
+  'recurring_removed',
+  'investment_added',
+  'investment_updated',
+  'investment_removed',
+  'budget_added',
+  'budget_removed',
+] as const
+
+export function isValidGroupActivityKind(value: unknown): value is GroupActivityKind {
+  return typeof value === 'string' && (GROUP_ACTIVITY_KINDS as readonly string[]).includes(value)
+}
+
+/**
+ * Audit entry of a group action (HU-0.11): who did what, when, and the
+ * structured payload needed to render the human sentence (e.g. amount,
+ * concept, recipient user id). `details` values are kept to scalars so the
+ * row stays JSON-safe and greppable.
+ */
+export interface GroupActivity {
+  id: string
+  groupId: string
+  /** Id of the member who performed the action (the actor). */
+  userId: string
+  action: GroupActivityKind
+  /** Structured payload consumed by the message renderer. */
+  details: Record<string, string | number | boolean | undefined>
+  /** ISO timestamp of the action. */
+  timestamp: string
+}
+
+/** How many ledger rows are kept per group before oldest entries are trimmed. */
+export const MAX_ACTIVITY_PER_GROUP = 500
 
 /** Default group palette values for a fresh group. */
 export function defaultGroupPalette(): Pick<Group, 'icon' | 'color'> {

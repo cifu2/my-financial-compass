@@ -1,11 +1,17 @@
 import type {
   Group,
+  GroupActivity,
+  GroupActivityKind,
   GroupMember,
   GroupSnapshot,
   Invitation,
   InvitationStatus,
 } from '../types'
-import { isValidGroupRole, isValidInvitationStatus } from '../types'
+import {
+  isValidGroupActivityKind,
+  isValidGroupRole,
+  isValidInvitationStatus,
+} from '../types'
 import type { CurrencyCode } from '../../dashboard/services/currency'
 import type { GroupSettings } from '../permissions'
 
@@ -54,7 +60,13 @@ function randomFallback(length: number): Uint8Array {
 }
 
 export function emptyGroupSnapshot(): GroupSnapshot {
-  return { version: GROUP_SNAPSHOT_VERSION, groups: [], members: [], invitations: [] }
+  return {
+    version: GROUP_SNAPSHOT_VERSION,
+    groups: [],
+    members: [],
+    invitations: [],
+    activities: [],
+  }
 }
 
 function groupFrom(value: unknown): Group | null {
@@ -82,7 +94,7 @@ function groupFrom(value: unknown): Group | null {
   ) {
     return null
   }
-  return {
+  const group: Group = {
     id,
     name,
     description,
@@ -93,6 +105,8 @@ function groupFrom(value: unknown): Group | null {
     createdAt,
     ...(settingsFrom(settings) ? { settings: settingsFrom(settings) } : {}),
   }
+  if (isString(value.archivedAt)) group.archivedAt = value.archivedAt
+  return group
 }
 
 /**
@@ -149,6 +163,46 @@ function invitationFrom(value: unknown): Invitation | null {
 }
 
 /**
+ * Strict-when-present parse of an activity row. Rows with an unknown action,
+ * a missing actor or a non-scalar payload field are dropped individually.
+ */
+function activityFrom(value: unknown): GroupActivity | null {
+  if (!isRecord(value)) return null
+  const { id, groupId, userId, action, details, timestamp } = value
+  const kind: unknown = action
+  if (
+    !isString(id) ||
+    !isString(groupId) ||
+    !isString(userId) ||
+    !isValidGroupActivityKind(kind) ||
+    !isString(timestamp)
+  ) {
+    return null
+  }
+  const clean: Record<string, string | number | boolean | undefined> = {}
+  if (isRecord(details)) {
+    for (const [key, val] of Object.entries(details)) {
+      if (
+        val === undefined ||
+        isString(val) ||
+        (typeof val === 'number' && Number.isFinite(val)) ||
+        typeof val === 'boolean'
+      ) {
+        clean[key] = val
+      }
+    }
+  }
+  return {
+    id,
+    groupId,
+    userId,
+    action: kind as GroupActivityKind,
+    details: clean,
+    timestamp,
+  }
+}
+
+/**
  * Parse a persisted groups blob strictly. Rows that fail validation are
  * dropped individually; the snapshot only becomes `null` when the payload is
  * unreadable as JSON or its schema version is unknown.
@@ -170,7 +224,16 @@ export function parseGroupSnapshot(raw: string): GroupSnapshot | null {
   const invitations = (Array.isArray(parsed.invitations) ? parsed.invitations : [])
     .map(invitationFrom)
     .filter((i): i is Invitation => i !== null)
-  return { version: GROUP_SNAPSHOT_VERSION, groups, members, invitations }
+  const activities = (Array.isArray(parsed.activities) ? parsed.activities : [])
+    .map(activityFrom)
+    .filter((a): a is GroupActivity => a !== null)
+  return {
+    version: GROUP_SNAPSHOT_VERSION,
+    groups,
+    members,
+    invitations,
+    activities,
+  }
 }
 
 /** Load and parse the persisted groups snapshot. Never throws. */

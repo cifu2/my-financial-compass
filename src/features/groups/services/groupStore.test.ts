@@ -22,10 +22,12 @@ describe('groupStore', () => {
       groups: expect.any(Array),
       members: expect.any(Array),
       invitations: expect.any(Array),
+      activities: expect.any(Array),
     })
     expect(parsed?.groups).toHaveLength(2)
     expect(parsed?.members).toHaveLength(4)
     expect(parsed?.invitations).toHaveLength(1)
+    expect(parsed?.activities).toHaveLength(0)
   })
 
   it('persists and reloads the same snapshot', () => {
@@ -138,10 +140,16 @@ describe('groupStore', () => {
     expect(parsed?.groups.map((g) => g.id)).toEqual(['grp-ok'])
   })
 
-  it('does not crash on a snapshot with missing arrays', () => {
+  it('returns empty snapshot for missing arrays (activities default to [])', () => {
     const blob = { version: GROUP_SNAPSHOT_VERSION }
     const parsed = parseGroupSnapshot(JSON.stringify(blob))
-    expect(parsed).toEqual({ version: 1, groups: [], members: [], invitations: [] })
+    expect(parsed).toEqual({
+      version: 1,
+      groups: [],
+      members: [],
+      invitations: [],
+      activities: [],
+    })
   })
 
   it('clears the store on demand', () => {
