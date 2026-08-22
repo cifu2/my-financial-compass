@@ -250,6 +250,36 @@ Ver cambios intermedios en `features/budgeting` e `features/investments`
   holdingsForContext 'all', página multi-contexto). Suite: **+28 tests** respecto
   al lanzamiento anterior en los ficheros del dashboard.
 
+## ✅ Transacciones con contexto de grupo (HU-0.6, MYF-22 COMPLETADO)
+
+- **Selector de contexto en el listado**: filtro **Personal / cada grupo /
+  Todas** en el encabezado de la página de transacciones, visible solo cuando
+  el usuario pertenece a al menos un grupo por defecto Personal. El listado
+  deriva de `visibleTransactions` con reglas explícitas (personal ↔ sin grupo;
+  grupo ↔ `groupId` igual; `all` ↔ todo el libro).
+- **Selector de grupo en el formulario**: al crear/editar un ingreso o gasto se
+  elige **Personal** o uno de los grupos del usuario con permiso de edición
+  (`data.edit`). **Por defecto se propone el contexto activo** del listado
+  ("por defecto se propone el contexto activo").
+- **Editar y reasignar**: cada fila gestionable ahora tiene **Editar**, cargando
+  la transacción en el formulario; al guardar se usa el nuevo
+  `AppState.updateTransaction(id, patch)` — se puede reasignar la transacción a
+  otro contexto (personal/grupo) sin perder historial.
+- **Quién lo añadió**: las filas de otro miembro muestran "Añadido por {nombre}"
+  (helper síncrono `transactionCreatorFor()`). La propiedad `userId` ya estampa
+  quién la creó.
+- **Permisos**: las filas de grupo respetan el ownership-permiso
+  (`groupAccessFor().canEditRecord`, HU-0.10): el admin edita/borra cualquier
+  fila, el miembro solo las suyas, `readonly` ninguna. Las personales son
+  siempre gestionables.
+- **Independencia del contexto**: se reutiliza el patrón del dashboard/recurrentes
+  (contexto local de la vista, no persistido, keyed por usuario). Sin grupos, la
+  página se comporta idénticamente a antes. Ver
+  [ADR-0012](docs/adr/0012-transaction-group-context.md)
+- **Tests**: 5 nuevos de página (filtro por contexto, origen de grupo, "Añadido
+  por", alta de transacción de grupo y reasignación) + fix de un warning TS
+  pre-existente (`GROUP_STORAGE_KEY` sin usar). Suite completa: **331 tests**.
+
 ## Próximos Pasos Recomendados
 
 1. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial

@@ -96,6 +96,8 @@ export interface AppState {
   /** When true, the last write to localStorage failed (e.g. quota). */
   storageError: boolean
   addTransaction: (t: Omit<Transaction, 'id'>) => void
+  /** Reassign or edit an existing transaction (HU-0.6, MYF-22). */
+  updateTransaction: (id: string, patch: Partial<Omit<Transaction, 'id'>>) => void
   addCategory: (c: Omit<Category, 'id'>) => void
   updateCategory: (id: string, c: Partial<Omit<Category, 'id'>>) => void
   addInvestment: (i: Omit<Investment, 'id'>, ownerships?: InvestmentOwnership[]) => void
@@ -307,6 +309,10 @@ export function AppStateProvider({
       }
       setTransactions((prev) => [...prev, stamped])
     },
+    updateTransaction: (id, patch) =>
+      setTransactions((prev) =>
+        prev.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+      ),
     addCategory: (c) => setCategories((prev) => [...prev, { ...c, id: now('cat') }]),
     updateCategory: (id, c) =>
       setCategories((prev) =>

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Page } from '../components/Page'
 import { TextField, SelectField } from '../components/FormField'
@@ -9,6 +9,15 @@ import { useAppState, type Transaction } from '../state/AppState'
 import { CategoryManager } from '../features/categories/components/CategoryManager'
 import { CategoryPicker } from '../features/categories/components/CategoryPicker'
 import { categoriesForType } from '../features/categories/services/categoryService'
+import { readSessionUser } from '../features/auth/services/authService'
+import { listUserGroups } from '../features/groups/services/groupService'
+import { groupAccessFor } from '../features/groups/access'
+import type { MyGroup } from '../features/groups/types'
+import {
+  transactionGroupName,
+  transactionCreatorFor,
+  type TransactionGroupOption,
+} from '../features/transactions/services/transactionGroupContext'
 import {
   required,
   maxLength,
@@ -22,6 +31,7 @@ import {
 } from '../lib/validation'
 import { formatDate } from '../lib/dates'
 import { translate, type UIKey } from '../lib/i18n'
+import '../features/transactions/transactions.css'
 
 interface TxForm {
   concept: string
@@ -29,6 +39,8 @@ interface TxForm {
   type: string
   categoryId: string
   date: string
+  /** '' = personal; otherwise the group the transaction belongs to (HU-0.6). */
+  groupId: string
 }
 
 const CONCEPT: Validator[] = [required(), maxLength(80)]
@@ -37,19 +49,81 @@ const TYPE: Validator[] = [requiredSelect()]
 const CATEGORY: Validator[] = [requiredSelect()]
 const DATE: Validator[] = [required(), isValidDate(), notInFuture()]
 
-export default function TransactionsPage() {
-  const { locale, store, addTransaction, remove, restore } =
-    useAppState()
-  const t = (key: UIKey) => translate(locale, key)
+/** Transaction list context (HU-0.6): personal, one group, or everything. */
+const TX_CONTEXT_PERSONAL = 'personal'
+const TX_CONTEXT_ALL = 'all'
 
-  // ---- transaction form
-  const [tx, setTx] = useState<TxForm>(() => ({
+function emptyTx(locale: 'es' | 'en', groupId = ''): TxForm {
+  return {
     concept: '',
     amount: '',
     type: '',
     categoryId: '',
     date: formatDate(new Date(), locale),
-  }))
+    groupId,
+  }
+}
+
+export default function TransactionsPage() {
+  const { locale, store, addTransaction, updateTransaction, remove, restore } =
+    useAppState()
+  const t = (key: UIKey) => translate(locale, key)
+
+  // ---- current user + their groups (context-aware, MYF-22 / HU-0.6)
+  const currentUserId = readSessionUser()?.id ?? null
+
+  const currentUserIdRef = useRef(currentUserId)
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId
+  }, [currentUserId])
+
+  // Groups owned by the activated user, keyed so a session switch never leaks
+  // another member's options between users (same pattern as the dashboard).
+  const [loadedGroups, setLoadedGroups] = useState<{
+    userId: string
+    groups: TransactionGroupOption[]
+  } | null>(null)
+
+  useEffect(() => {
+    if (!currentUserId) return
+    let cancelled = false
+    void listUserGroups(currentUserId).then((userGroups: MyGroup[]) => {
+      if (cancelled) return
+      const options: TransactionGroupOption[] = userGroups
+        .map((g) => ({
+          id: g.id,
+          name: g.name,
+          role: g.role,
+          canEdit: groupAccessFor(g.id, currentUserId).canEdit,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      setLoadedGroups({ userId: currentUserId, groups: options })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [currentUserId])
+
+  const userGroups = useMemo(
+    () => (loadedGroups !== null && loadedGroups.userId === currentUserId ? loadedGroups.groups : []),
+    [loadedGroups, currentUserId],
+  )
+  const hasGroups = userGroups.length > 0
+  // Which context the list shows. Defaults to "personal" so members opt-in to
+  // group ledgers; when no groups exist personal and all are equivalent.
+  const [listContext, setListContext] = useState<string>(TX_CONTEXT_PERSONAL)
+
+  const visibleTransactions = useMemo(() => {
+    if (listContext === TX_CONTEXT_ALL) return store.transactions
+    if (listContext === TX_CONTEXT_PERSONAL) {
+      return store.transactions.filter((tr) => tr.groupId === undefined)
+    }
+    return store.transactions.filter((tr) => tr.groupId === listContext)
+  }, [store.transactions, listContext])
+
+  // ---- transaction form (create + edit/reassign)
+  const [tx, setTx] = useState<TxForm>(() => emptyTx(locale))
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [txTouched, setTxTouched] = useState<Partial<Record<keyof TxForm, boolean>>>({})
   const [txAttempted, setTxAttempted] = useState(false)
 
@@ -59,7 +133,7 @@ export default function TransactionsPage() {
     return error && (txAttempted || txTouched[key]) ? error : undefined
   }
 
-  function txValidatorsFor(key: keyof TxForm): Validator[] {
+  function txValidatorsFor(key: keyof TxForm): Validator[] | undefined {
     switch (key) {
       case 'concept':
         return CONCEPT
@@ -71,6 +145,9 @@ export default function TransactionsPage() {
         return CATEGORY
       case 'date':
         return DATE
+      case 'groupId':
+        // Every option is valid; the personal context is '', a group its id.
+        return undefined
     }
   }
 
@@ -79,12 +156,24 @@ export default function TransactionsPage() {
   }
 
   function resetTxForm() {
+    setEditingId(null)
+    // The default proposes the active context (HU-0.6): when the filtered
+    // list is a group, fresh transactions belong to that group by default.
+    const proposed = listContext !== TX_CONTEXT_PERSONAL && listContext !== TX_CONTEXT_ALL ? listContext : ''
+    setTx(emptyTx(locale, proposed))
+    setTxTouched({})
+    setTxAttempted(false)
+  }
+
+  function startEdit(item: Transaction) {
+    setEditingId(item.id)
     setTx({
-      concept: '',
-      amount: '',
-      type: '',
-      categoryId: '',
-      date: formatDate(new Date(), locale),
+      concept: item.concept,
+      amount: String(item.amount).replace('.', ','),
+      type: item.type,
+      categoryId: item.categoryId,
+      date: formatDate(item.date, locale),
+      groupId: item.groupId ?? '',
     })
     setTxTouched({})
     setTxAttempted(false)
@@ -99,6 +188,7 @@ export default function TransactionsPage() {
       type: true,
       categoryId: true,
       date: true,
+      groupId: true,
     })
     const invalid =
       validateField(tx.concept, CONCEPT, locale) ||
@@ -107,15 +197,29 @@ export default function TransactionsPage() {
       validateField(tx.categoryId, CATEGORY, locale) ||
       validateField(tx.date, DATE, locale)
     if (invalid) return
-    addTransaction({
-      concept: tx.concept.trim(),
-      amount: Number(tx.amount.replace(',', '.')),
-      type: tx.type as 'income' | 'expense',
-      categoryId: tx.categoryId,
-      date: toIsoDate(tx.date),
-    })
+    const groupId = tx.groupId !== '' ? tx.groupId : undefined
+    if (editingId !== null) {
+      updateTransaction(editingId, {
+        concept: tx.concept.trim(),
+        amount: Number(tx.amount.replace(',', '.')),
+        type: tx.type as 'income' | 'expense',
+        categoryId: tx.categoryId,
+        date: toIsoDate(tx.date),
+        groupId,
+      })
+      showTxSaved(t('toast.transactionUpdated'))
+    } else {
+      addTransaction({
+        concept: tx.concept.trim(),
+        amount: Number(tx.amount.replace(',', '.')),
+        type: tx.type as 'income' | 'expense',
+        categoryId: tx.categoryId,
+        date: toIsoDate(tx.date),
+        groupId,
+      })
+      showTxSaved(t('toast.transactionSaved'))
+    }
     resetTxForm()
-    showTxSaved(t('toast.transactionSaved'))
   }
 
   // ---- save confirmation toast
@@ -131,17 +235,16 @@ export default function TransactionsPage() {
   // ---- delete + undo
   const txUndo = useUndo<Transaction>(8000)
   const [confirming, setConfirming] = useState<{
-    kind: 'transaction'
     id: string
     label: string
   } | null>(null)
 
   function onConfirmed() {
     if (!confirming) return
-    const { kind, id, label } = confirming
+    const { id, label } = confirming
     const item = store.transactions.find((x) => x.id === id)
     if (item) {
-      remove({ kind, item })
+      remove({ kind: 'transaction', item })
       txUndo.push(item, label)
     }
     setConfirming(null)
@@ -159,12 +262,63 @@ export default function TransactionsPage() {
     [store.categories, tx.type],
   )
 
+  // HU-0.10 permission gating: shared rows are only manageable while the actor
+  // keeps edit rights in the row's group; personal rows are always manageable.
+  const canManage = useCallback(
+    (item: Transaction): boolean => {
+      if (item.groupId === undefined) return true
+      const access = groupAccessFor(item.groupId, currentUserId ?? undefined)
+      return access.canEditRecord(item.userId)
+    },
+    [currentUserId],
+  )
+
+  function changeListContext(value: string) {
+    setListContext(value)
+    // HU-0.6: por defecto se propone el contexto activo en el formulario.
+    if (editingId === null) {
+      const proposed = value !== TX_CONTEXT_PERSONAL && value !== TX_CONTEXT_ALL ? value : ''
+      setTx((prev) => ({ ...prev, groupId: proposed }))
+    }
+  }
+
+  const showListContext = hasGroups
+
+  const groupOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [
+      { value: '', label: t('transaction.contextPersonal') },
+    ]
+    for (const g of userGroups) {
+      if (g.canEdit) opts.push({ value: g.id, label: g.name })
+    }
+    // Keep an edition's current group selectable even if rights lapsed.
+    const current = tx.groupId
+    if (current !== '' && !opts.some((o) => o.value === current)) {
+      opts.push({ value: current, label: t('transaction.grouped').replace('{name}', transactionGroupName(current) ?? current) })
+    }
+    return opts
+  }, [userGroups, tx.groupId, t])
+
+  const showGroupInForm = userGroups.length > 0 || tx.groupId !== ''
+
   return (
     <Page title={t('section.transactions')}>
       <div className="stack">
         <div className="panel">
-          <h2>{t('common.transaction')}</h2>
+          <h2>{editingId !== null ? t('form.edit') : t('common.transaction')}</h2>
           <form onSubmit={saveTransaction} noValidate>
+            {showGroupInForm && (
+              <div className="form-row">
+                <SelectField
+                  label={t('transaction.contextLabel')}
+                  name="groupId"
+                  value={tx.groupId}
+                  error={undefined}
+                  onChange={(e) => setTxField('groupId', e.target.value)}
+                  options={groupOptions}
+                />
+              </div>
+            )}
             <div className="form-row">
               <TextField
                 label={t('fld.description')}
@@ -233,15 +387,35 @@ export default function TransactionsPage() {
                 {t('form.cancel')}
               </button>
               <button type="submit" className="btn btn--primary">
-                {t('form.save')}
+                {editingId !== null ? t('form.submit') : t('form.save')}
               </button>
             </div>
           </form>
         </div>
 
         <div className="panel">
-          <h2>{t('section.transactions')}</h2>
-          {store.transactions.length === 0 ? (
+          <div className="tx-list-header">
+            <h2>{t('section.transactions')}</h2>
+            {showListContext && (
+              <label className="tx-context-filter">
+                <span className="visually-hidden">{t('recurring.contextFilterLabel')}</span>
+                <select
+                  className="input"
+                  value={listContext}
+                  onChange={(e) => changeListContext(e.target.value)}
+                >
+                  <option value={TX_CONTEXT_PERSONAL}>{t('transaction.contextPersonal')}</option>
+                  <option value={TX_CONTEXT_ALL}>{t('transaction.contextAll')}</option>
+                  {userGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+          {visibleTransactions.length === 0 ? (
             <p className="text-muted">{t('common.empty')}</p>
           ) : (
             <table className="data-table">
@@ -255,10 +429,31 @@ export default function TransactionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {store.transactions.map((item) => (
+                {visibleTransactions.map((item) => (
                   <tr key={item.id}>
                     <td>{formatDate(item.date, locale)}</td>
-                    <td>{item.concept}</td>
+                    <td>
+                      <span className="tx-description">
+                        {item.concept}
+                        {item.groupId !== undefined && (
+                          <span className="origin-tag">
+                            {transactionGroupName(item.groupId) ?? item.groupId}
+                          </span>
+                        )}
+                        {item.userId !== undefined &&
+                          !transactionCreatorFor(item.userId, currentUserId).isSelf && (
+                          <span className="text-muted tx-added-by">
+                            {t('transaction.addedBy').replace(
+                              '{name}',
+                              transactionCreatorFor(
+                                item.userId,
+                                currentUserId,
+                              ).name,
+                            )}
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td>
                       {store.categories.find((c) => c.id === item.categoryId)?.name ??
                         '—'}
@@ -269,20 +464,27 @@ export default function TransactionsPage() {
                         {Math.abs(item.amount).toFixed(2)}
                       </span>
                     </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn--danger"
-                        onClick={() =>
-                          setConfirming({
-                            kind: 'transaction',
-                            id: item.id,
-                            label: item.concept,
-                          })
-                        }
-                      >
-                        {t('common.delete')}
-                      </button>
+                    <td className="data-table__actions">
+                      {canManage(item) && (
+                        <span className="tx-actions">
+                          <button
+                            type="button"
+                            className="btn btn--secondary"
+                            onClick={() => startEdit(item)}
+                          >
+                            {t('form.edit')}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--danger"
+                            onClick={() =>
+                              setConfirming({ id: item.id, label: item.concept })
+                            }
+                          >
+                            {t('common.delete')}
+                          </button>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -318,7 +520,7 @@ export default function TransactionsPage() {
         </div>
       )}
 
-{txUndo.snapshots.map((snap, index) => (
+      {txUndo.snapshots.map((snap, index) => (
         <UndoToast
           key={snap.id}
           entry={snap}

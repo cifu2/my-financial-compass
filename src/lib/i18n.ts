@@ -15,6 +15,11 @@ const ui: Record<Locale, Record<string, string>> = {
     'confirm.deleteTitle': '¿Confirmar eliminación?',
     'transaction.deleteTitle':
       '¿Seguro que desea eliminar esta transacción? Esta acción no se puede deshacer.',
+    'transaction.contextLabel': 'Contexto',
+    'transaction.contextPersonal': 'Personal',
+    'transaction.contextAll': 'Todas',
+    'transaction.addedBy': 'Añadido por {name}',
+    'transaction.grouped': 'De {name}',
     'category.deleteTitle':
       '¿Seguro que desea eliminar esta categoría? Esta acción no se puede deshacer.',
     'investment.deleteTitle':
@@ -60,6 +65,7 @@ const ui: Record<Locale, Record<string, string>> = {
     'budget.byMember': 'Desglose por miembro',
     'budget.noGroupBudgets': 'Este grupo aún no tiene presupuestos definidos.',
     'toast.transactionSaved': 'Transacción guardada',
+    'toast.transactionUpdated': 'Transacción actualizada',
     'section.transactions': 'Transacciones',
     'section.categories': 'Categorías',
     'section.investments': 'Inversiones',
@@ -367,6 +373,11 @@ const ui: Record<Locale, Record<string, string>> = {
     'confirm.deleteTitle': 'Confirm deletion?',
     'transaction.deleteTitle':
       'Are you sure you want to delete this transaction? This action cannot be undone.',
+    'transaction.contextLabel': 'Context',
+    'transaction.contextPersonal': 'Personal',
+    'transaction.contextAll': 'All',
+    'transaction.addedBy': 'Added by {name}',
+    'transaction.grouped': 'From {name}',
     'category.deleteTitle':
       'Are you sure you want to delete this category? This action cannot be undone.',
     'investment.deleteTitle':
@@ -412,6 +423,7 @@ const ui: Record<Locale, Record<string, string>> = {
     'budget.byMember': 'Breakdown by member',
     'budget.noGroupBudgets': 'This group has no budgets configured yet.',
     'toast.transactionSaved': 'Transaction saved',
+    'toast.transactionUpdated': 'Transaction updated',
     'section.transactions': 'Transactions',
     'section.categories': 'Categories',
     'section.investments': 'Investments',
