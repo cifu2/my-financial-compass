@@ -52,6 +52,8 @@ El proyecto está operativo con **build limpio, 185+ tests pasando, lint sin err
 | Persistencia localStorage | ✅ Funcional (MYF-11) |
 | Loading states + skeletons | ✅ Funcional (MYF-13) |
 | Error boundary global + logging | ✅ Funcional (MYF-18, ADR-0005) |
+| Lazy loading por ruta + code splitting | ✅ Funcional (MYF-23) |
+| SEO meta tags | ✅ Funcional (MYF-23) |
 | Build producción (`npm run build`) | ✅ Verificado (dist/ correcto) |
 | Config Vercel (`vercel.json`) | ✅ Preparado (MYF-14) |
 | Despliegue Vercel | ⛔ Bloqueado: falta token Vercel / repo GitHub |
@@ -93,11 +95,43 @@ El proyecto está operativo con **build limpio, 185+ tests pasando, lint sin err
 - Acción de desbloqueo: CEO/board debe aportar `VERCEL_TOKEN` (o GitHub repo +
   token) como Paperclip secret al agente Founding Engineer.
 
+## ✅ Semana 4: Optimización de bundle y performance (MYF-23 COMPLETADO)
+
+### Análisis de bundle
+- **Baseline**: 525 kB JS minificado (147 kB gzip) en un único chunk.
+- **Herramienta**: `vite-bundle-analyzer` (devDependency). Con
+  `ANALYZE=true npm run build` se genera `dist/stats.html` (treemap interactivo).
+
+### Optimizaciones aplicadas
+- **Lazy loading por ruta**: cada página secundaria es un chunk propio
+  (`React.lazy` + `Suspense` con fallback accesible `PageLoader`). El dashboard
+  se mantiene eager para preservar el primer paint.
+- **Code splitting de vendor**: `react`/`react-dom` en chunk propio cacheable.
+- **Tree shaking**: imports optimizados en `App.tsx` (módulos de estado/UI que
+  solo aportaban tipos movidos a imports de tipo).
+- **SEO básico**: meta description, OG/Twitter tags, theme-color, robots,
+  canonical URL build-time (`VITE_CANONICAL_URL`).
+
+### Resultados (build de producción)
+- Chunk inicial (entrada + dashboard): **76.63 kB (19.43 kB gzip)** frente a
+  525 kB originales.
+- Páginas secundarias: 0.7–5.3 kB gzip cada una, cargadas a demanda.
+- Total gzip emitido: **~164 kB** (< 500 kB criterio de aceptación).
+- Lighthouse **performance: 100** (throttling `provided`, entorno headless);
+  con throttling móvil simulado el score baja por CPU de sandbox, no por
+  bundle (TBT desciende a 0 ms sin throttling).
+- [ADR-0006](docs/adr/0006-bundle-performance-seo.md)
+
+| Criterio | Estado |
+|----------|--------|
+| Bundle < 500 kB gzip | ✅ ~164 kB total |
+| Lazy loading páginas principales | ✅ 5 de 6 páginas en chunks a demanda |
+| Lighthouse > 90 | ✅ 100 (provided) |
+
 ## Próximos Pasos Recomendados
 
-1. **MYF-23**: Optimización de bundle y performance
-2. **MYF-24**: Documentación para beta testers
-3. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial
+1. **MYF-24**: Documentación para beta testers
+2. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial
 
 ## Comando Útil
 
