@@ -9,6 +9,13 @@ cinco módulos:
 4. **Inversiones y multidivisa** — Cartera de inversiones con conversión de divisas.
 5. **Dashboard** — Resumen mensual, desglose de gastos, transacciones recientes y patrimonio neto.
 
+> **Beta testers**: ¿eres de los primeros usuarios de prueba? Consulta la
+> [guía de uso](./docs/beta/GUIA_DE_USO.md), las
+> [pautas de feedback](./docs/beta/FEEDBACK_GUIDELINES.md) y la
+> [lista de control de features](./docs/beta/FEATURES_CHECKLIST.md). El
+> formulario de feedback está disponible en `public/feedback.html`
+> (enlazado desde **Configuración → Enviar feedback**).
+
 ## Stack
 
 - **Framework:** React 19 + TypeScript
@@ -17,10 +24,10 @@ cinco módulos:
 - **Testing:** Vitest + Testing Library + jsdom
 - **Routing:** SPA con hash (`#/…`), sin librería externa
 
-## Requisitos previos (para producción)
+## Convenciones de código
 
-> Los comentarios en el código y los nombres de archivo se escriben en inglés,
-> mientras que la interfaz de usuario es i18n (es/en). Ver [docs/i18n.md](../docs/i18n.md) si fuera a existir.
+> El código y los nombres de archivo se escriben en inglés; la interfaz de
+> usuario es i18n (es/en) mediante `src/lib/i18n.ts`.
 
 ## Puesta en marcha
 

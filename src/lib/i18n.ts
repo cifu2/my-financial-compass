@@ -172,6 +172,10 @@ const ui: Record<Locale, Record<string, string>> = {
     'error.reportLabel': 'Copiar informe del error',
     'error.reportCopiedLabel': 'Informe copiado',
     'error.detailsLabel': 'Ver detalles técnicos',
+    'settings.feedbackTitle': 'Feedback (beta)',
+    'settings.feedbackHint':
+      '¿Has encontrado un error o tienes una sugerencia? Usa el formulario de feedback para reportarlo de forma estructurada.',
+    'settings.feedbackLink': 'Enviar feedback',
   },
   en: {
     'app.title': 'Financial Compass',
@@ -344,6 +348,10 @@ const ui: Record<Locale, Record<string, string>> = {
     'error.reportLabel': 'Copy error report',
     'error.reportCopiedLabel': 'Report copied',
     'error.detailsLabel': 'View technical details',
+    'settings.feedbackTitle': 'Feedback (beta)',
+    'settings.feedbackHint':
+      'Found a bug or have a suggestion? Use the feedback form to report it in a structured way.',
+    'settings.feedbackLink': 'Send feedback',
   },
 }
 

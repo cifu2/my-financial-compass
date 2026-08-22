@@ -128,10 +128,28 @@ El proyecto está operativo con **build limpio, 185+ tests pasando, lint sin err
 | Lazy loading páginas principales | ✅ 5 de 6 páginas en chunks a demanda |
 | Lighthouse > 90 | ✅ 100 (provided) |
 
+## ✅ Documentación para beta testers (MYF-24 COMPLETADO)
+
+- **Guía rápida de uso**: [`docs/beta/GUIA_DE_USO.md`](beta/GUIA_DE_USO.md) —
+  10 minutos para empezar, qué hay en cada pantalla, validación, confirmación
+  y undo, privacidad.
+- **Pautas de feedback**: [`docs/beta/FEEDBACK_GUIDELINES.md`](beta/FEEDBACK_GUIDELINES.md) —
+   prioridades, qué incluir en un reporte y plantilla de campos.
+- **Lista de control de features**: [`docs/beta/FEATURES_CHECKLIST.md`](beta/FEATURES_CHECKLIST.md) —
+   checklist por módulo + transversal para testers.
+- **Formulario de feedback `public/feedback.html`**: página estática
+  autocontenida y accesible (WCAG: labels visibles, navegable por teclado,
+  mensajes de error). Valida campos, construye el informe estructurado, lo
+  guarda en localStorage y permite copiarlo o enviarlo por correo. Enlazado
+  desde **Configuración → Enviar feedback** (i18n es/en). Sin backend: los
+  datos nunca salen del dispositivo salvo el reporte explícito.
+- [Index de docs](beta/README.md) + sección "Beta testers" en `README.md`.
+- **Tests**: `SettingsPage.test.tsx` cubre el enlace de feedback en ambos
+  idiomas. Suite: **174 tests**.
+
 ## Próximos Pasos Recomendados
 
-1. **MYF-24**: Documentación para beta testers
-2. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial
+1. **Sentry**: integrar transporte en `errorReporting.ts` cuando el CEO aporte credencial
 
 ## Comando Útil
 

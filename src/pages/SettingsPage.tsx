@@ -49,6 +49,16 @@ export default function SettingsPage() {
             </div>
           </form>
         </div>
+
+        <div className="panel">
+          <h2>{t('settings.feedbackTitle')}</h2>
+          <p className="text-muted">{t('settings.feedbackHint')}</p>
+          <div className="form-actions">
+            <a className="btn btn--secondary" href="/feedback.html">
+              {t('settings.feedbackLink')}
+            </a>
+          </div>
+        </div>
       </div>
     </Page>
   )
