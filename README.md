@@ -9,6 +9,12 @@ cinco módulos:
 4. **Inversiones y multidivisa** — Cartera de inversiones con conversión de divisas.
 5. **Dashboard** — Resumen mensual, desglose de gastos, transacciones recientes y patrimonio neto.
 
+Además, el modo **grupos** añade datos compartidos entre miembros
+(invitaciones, roles y permisos), **balances de deudas con reparto y
+liquidaciones**, un **registro de actividad del grupo** y el **borrado con
+doble confirmación** (archivar o eliminar).
+6. **Grupos / Reparto** — Gastos compartidos con modos de reparto (iguales, porcentajes, importes fijos, ponderaciones), balances de deudas por miembro y liquidaciones entre miembros.
+
 > **Beta testers**: ¿eres de los primeros usuarios de prueba? Consulta la
 > [guía de uso](./docs/beta/GUIA_DE_USO.md), las
 > [pautas de feedback](./docs/beta/FEEDBACK_GUIDELINES.md) y la

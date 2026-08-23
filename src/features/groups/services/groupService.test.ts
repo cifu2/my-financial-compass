@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import {
   acceptInvitation,
   addMember,
+  archiveGroup,
   changeMemberRole,
   createGroup,
   createInvitation,
@@ -14,11 +15,12 @@ import {
   listUserGroups,
   promoteToAdmin,
   removeMember,
+  restoreGroup,
   revokeInvitation,
   updateGroup,
 } from './groupService'
-import type { GroupSnapshot } from '../types'
-import { clearGroupSnapshot, GROUP_STORAGE_KEY } from './groupStore'
+import type { GroupActivityKind, GroupSnapshot } from '../types'
+import { clearGroupSnapshot, GROUP_STORAGE_KEY, loadGroupSnapshot } from './groupStore'
 import { seedGroupSnapshot, SEED_USERS } from '../data/seeds'
 
 /** Baseline fixture mirroring the seed so reads start from a known state. */
@@ -26,6 +28,11 @@ function seed(): GroupSnapshot {
   const snapshot = seedGroupSnapshot()
   localStorage.setItem(GROUP_STORAGE_KEY, JSON.stringify(snapshot))
   return snapshot
+}
+
+/** Activity rows of a group with the given action (tests HU-0.11 audit). */
+function activityFor(groupId: string, action: GroupActivityKind) {
+  return loadGroupSnapshot().activities.filter((a) => a.groupId === groupId && a.action === action)
 }
 
 describe('createGroup', () => {
@@ -156,10 +163,42 @@ describe('group CRUD', () => {
     expect((await listUserGroups(SEED_USERS.ana.id)).find((g) => g.name === 'Solo yo')).toBeUndefined()
   })
 
-  it('refuses to delete a group that still has other members', async () => {
+  it('deletes a group that still has other members and cascades rows (HU-0.12)', async () => {
     const deleted = await deleteGroup('grp-hogar', SEED_USERS.ana.id)
+    expect(deleted.ok).toBe(true)
+    const remains = await getGroup('grp-hogar')
+    expect(remains.ok).toBe(false)
+    const members = await listMembers('grp-hogar')
+    expect(members.ok).toBe(false)
+  })
+
+  it('rejects deleting a group by a non-admin (HU-0.12)', async () => {
+    const deleted = await deleteGroup('grp-hogar', SEED_USERS.jose.id)
     expect(deleted.ok).toBe(false)
-    if (!deleted.ok) expect(deleted.error.code).toBe('group-not-empty')
+    if (!deleted.ok) expect(deleted.error.code).toBe('not-admin')
+  })
+
+  it('archives and restores a group keeping its ledger and activity (HU-0.12)', async () => {
+    const archived = await archiveGroup('grp-hogar', SEED_USERS.ana.id)
+    expect(archived.ok).toBe(true)
+    const group = await getGroup('grp-hogar')
+    expect(group.ok && Boolean(group.data.archivedAt)).toBe(true)
+    // Hidden from the active list.
+    const active = await listUserGroups(SEED_USERS.ana.id)
+    expect(active.find((g) => g.id === 'grp-hogar')).toBeUndefined()
+    expect(activityFor('grp-hogar', 'group_archived')).toHaveLength(1)
+    const restored = await restoreGroup('grp-hogar', SEED_USERS.ana.id)
+    expect(restored.ok).toBe(true)
+    expect((await listUserGroups(SEED_USERS.ana.id)).some((g) => g.id === 'grp-hogar')).toBe(true)
+  })
+
+  it('posts a delete notice to every member when archiving (HU-0.12)', async () => {
+    await archiveGroup('grp-hogar', SEED_USERS.ana.id)
+    const notices = loadGroupSnapshot().activities.filter(
+      (a) => a.groupId === 'grp-hogar' && a.action === 'group_delete_notice',
+    )
+    // grp-hogar members: ana + jose.
+    expect(notices).toHaveLength(2)
   })
 })
 

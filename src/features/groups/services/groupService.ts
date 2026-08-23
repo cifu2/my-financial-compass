@@ -23,6 +23,8 @@ import {
   newInvitationToken,
   persistGroupSnapshot,
 } from './groupStore'
+import { recordGroupActivity } from './groupActivity'
+import { loadAuthSnapshot } from '../../auth/services/authStore'
 
 /**
  * Domain service for the multiuser/groups model (see ADR-0008).
@@ -35,12 +37,16 @@ import {
  *
  * - **Admin invariant**: a group always has at least one `admin`. Operations
  *   that would remove or demote the last admin are rejected, including
- *   leaving the group, deleting a member, demoting a role, and deleting the
- *   entire group while it still has other members.
+ *   leaving the group, deleting a member, demoting a role, and archiving a
+ *   group that still has other members.
  * - **Authorization**: only admins may add/remove members, change roles,
- *   invite, edit or delete the group. Any authenticated user may create a
- *   group (becoming its first admin) or leave one. `readonly` members keep
- *   data visible but cannot change it.
+ *   invite, edit, archive or delete the group. Any authenticated user may
+ *   create a group (becoming its first admin) or leave one. `readonly`
+ *   members keep data visible but cannot change it.
+ * - **Audit trail (HU-0.11)**: every relevant mutation records a
+ *   {@link GroupActivity} row via `recordGroupActivity`, so members can trace
+ *   who changed what. Deleting/archiving a group first posts a notice entry
+ *   for each member (the local-first equivalent of "notifying members").
  * - Validations live here (not in the UI): known currencies, palette values,
  *   role/status whitelists, unique group names per user, single pending
  *   invitation per (group, email).
@@ -255,6 +261,12 @@ export async function createGroup(
   snapshot.members.push(admin)
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo guardar el grupo.')
+  recordGroupActivity({
+    groupId: group.id,
+    userId: ownerId,
+    action: 'group_created',
+    details: { group: group.name },
+  })
   return ok(group)
 }
 
@@ -271,9 +283,37 @@ export async function listUserGroups(userId: string): Promise<MyGroup[]> {
     snapshot.members.filter((m) => m.userId === userId).map((m) => m.groupId),
   )
   return snapshot.groups
+    .filter((g) => memberIds.has(g.id) && !g.archivedAt)
+    .map((g) => toMyGroup(snapshot, g, userId))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Active + archived groups of the user (used by group management screens). */
+export async function listUserGroupsIncludingArchived(userId: string): Promise<MyGroup[]> {
+  const snapshot = loadGroupSnapshot()
+  const memberIds = new Set(
+    snapshot.members.filter((m) => m.userId === userId).map((m) => m.groupId),
+  )
+  return snapshot.groups
     .filter((g) => memberIds.has(g.id))
     .map((g) => toMyGroup(snapshot, g, userId))
     .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Members of a group joined with display names (for activity renderers). */
+export async function listMembersWithNames(
+  groupId: string,
+): Promise<GroupResult<MemberProfile[]>> {
+  const members = await listMembers(groupId)
+  if (!members.ok) return members
+  const auth = loadAuthSnapshot()
+  const names = new Map(auth.users.map((u) => [u.id, u.name]))
+  return ok(
+    members.data.map((m) => ({
+      ...m,
+      name: names.get(m.userId) ?? m.name,
+    })),
+  )
 }
 
 export interface UpdateGroupInput {
@@ -347,13 +387,22 @@ export async function updateGroup(
   }
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo guardar el grupo.')
+  recordGroupActivity({
+    groupId: group.id,
+    userId: actorId,
+    action: 'group_updated',
+    details: { group: group.name },
+  })
   return ok(group)
 }
 
 /**
- * Removes a group and all of its membership rows and invitations. Only the
- * group's admin may delete it; a group that still has other members cannot be
- * deleted (transfer ownership or remove members first).
+ * Hard-deletes a group, its memberships, invitations and activity trail
+ * (HU-0.12). Only an admin may delete; the UI enforces the double
+ * confirmation and offers archival as a safer alternative. Before removing
+ * the group, a `group_delete_notice` entry is posted for every member (the
+ * local-first "notify members before deleting" step) and the deletion itself
+ * is written to the trail so the action has a trace.
  */
 export async function deleteGroup(
   groupId: string,
@@ -365,16 +414,98 @@ export async function deleteGroup(
   if (!hasRole(snapshot, groupId, actorId, 'admin')) {
     return fail('not-admin', 'Solo los administradores pueden borrar el grupo.')
   }
-  const memberCount = snapshot.members.filter((m) => m.groupId === groupId).length
-  if (memberCount > 1) {
-    return fail('group-not-empty', 'El grupo debe quedar vacío antes de borrarlo.')
+  const memberIds = snapshot.members
+    .filter((m) => m.groupId === groupId)
+    .map((m) => m.userId)
+  for (const userId of memberIds) {
+    recordGroupActivity({
+      groupId,
+      userId: actorId,
+      action: 'group_delete_notice',
+      details: { recipientId: userId },
+    })
   }
+  recordGroupActivity({
+    groupId,
+    userId: actorId,
+    action: 'group_deleted',
+    details: { group: group.name },
+  })
   snapshot.groups = snapshot.groups.filter((g) => g.id !== groupId)
   snapshot.members = snapshot.members.filter((m) => m.groupId !== groupId)
   snapshot.invitations = snapshot.invitations.filter((i) => i.groupId !== groupId)
+  snapshot.activities = snapshot.activities.filter((a) => a.groupId !== groupId)
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo borrar el grupo.')
   return ok(null)
+}
+
+/**
+ * Archives a group keeping its shared data and activity trail (HU-0.12).
+ * Archived groups disappear from the active selectors but stay stored; an
+ * admin may restore them later. Every member is posted a notice entry first.
+ */
+export async function archiveGroup(
+  groupId: string,
+  actorId: string,
+  options: { notify?: boolean } = {},
+): Promise<GroupResult<Group>> {
+  const snapshot = loadGroupSnapshot()
+  const group = findGroup(snapshot, groupId)
+  if (!group) return fail('not-found', 'Grupo no encontrado.')
+  if (!hasRole(snapshot, groupId, actorId, 'admin')) {
+    return fail('not-admin', 'Solo los administradores pueden archivar el grupo.')
+  }
+  if (!group.archivedAt) {
+    group.archivedAt = new Date().toISOString()
+  }
+  const write = persistGroupSnapshot(snapshot)
+  if (write) return fail('storage', 'No se pudo archivar el grupo.')
+  if (options.notify !== false) {
+    for (const userId of snapshot.members
+      .filter((m) => m.groupId === groupId)
+      .map((m) => m.userId)) {
+      recordGroupActivity({
+        groupId,
+        userId: actorId,
+        action: 'group_delete_notice',
+        details: { recipientId: userId },
+      })
+    }
+  }
+  recordGroupActivity({
+    groupId,
+    userId: actorId,
+    action: 'group_archived',
+    details: { group: group.name },
+  })
+  return ok(group)
+}
+
+/** Re-activates an archived group. Admins only. */
+export async function restoreGroup(
+  groupId: string,
+  actorId: string,
+): Promise<GroupResult<Group>> {
+  const snapshot = loadGroupSnapshot()
+  const group = findGroup(snapshot, groupId)
+  if (!group) return fail('not-found', 'Grupo no encontrado.')
+  if (!hasRole(snapshot, groupId, actorId, 'admin')) {
+    return fail('not-admin', 'Solo los administradores pueden restaurar el grupo.')
+  }
+  const wasArchived = group.archivedAt !== undefined
+  delete group.archivedAt
+  const write = persistGroupSnapshot(snapshot)
+  if (write) return fail('storage', 'No se pudo restaurar el grupo.')
+  if (wasArchived) {
+    recordGroupActivity({
+      groupId,
+      userId: actorId,
+      action: 'group_restored',
+      details: { group: group.name },
+    })
+  }
+  return ok(group)
 }
 
 // ---------------------------------------------------------------------------
@@ -410,6 +541,12 @@ export async function addMember(
   snapshot.members.push(member)
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo añadir el miembro.')
+  recordGroupActivity({
+    groupId,
+    userId: actorId,
+    action: 'member_added',
+    details: { targetUserId: userId },
+  })
   return ok(member)
 }
 
@@ -435,6 +572,12 @@ export async function changeMemberRole(
   member.role = newRole
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo cambiar el rol.')
+  recordGroupActivity({
+    groupId,
+    userId: actorId,
+    action: 'role_changed',
+    details: { targetUserId: userId, role: newRole },
+  })
   return ok(member)
 }
 
@@ -464,6 +607,12 @@ export async function removeMember(
   )
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo quitar el miembro.')
+  recordGroupActivity({
+    groupId,
+    userId: actorId,
+    action: 'member_removed',
+    details: { targetUserId: userId },
+  })
   return ok(null)
 }
 
@@ -523,6 +672,12 @@ export async function createInvitation(
   snapshot.invitations.push(invitation)
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo crear la invitación.')
+  recordGroupActivity({
+    groupId,
+    userId: actorId,
+    action: 'invitation_sent',
+    details: { email, role },
+  })
   return ok(invitation)
 }
 
@@ -593,6 +748,12 @@ export async function acceptInvitation(
   invitation.status = 'accepted'
   const write = persistGroupSnapshot(snapshot)
   if (write) return fail('storage', 'No se pudo aceptar la invitación.')
+  recordGroupActivity({
+    groupId: group.id,
+    userId,
+    action: 'member_added',
+    details: { targetUserId: userId },
+  })
   return ok(member)
 }
 

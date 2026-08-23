@@ -6,6 +6,7 @@ import { ProfileForm } from '../features/auth/components/ProfileForm'
 import { SecuritySection } from '../features/auth/components/SecuritySection'
 import { DangerZone } from '../features/auth/components/DangerZone'
 import { Avatar } from '../features/auth/components/Avatar'
+import { GroupAdminPanel } from '../features/groups/components/GroupAdminPanel'
 import { useAuth } from '../features/auth/state/AuthContext'
 import { formatDate, type Locale } from '../lib/dates'
 import { translate, type UIKey } from '../lib/i18n'
@@ -53,6 +54,18 @@ export default function SettingsPage() {
           <p className="text-note">{t('account.subtitle')}</p>
           <div className="settings-section">
             <DangerZone locale={locale} />
+          </div>
+        </div>
+
+        <div className="panel">
+          <h2>{t('settings.groupsTitle')}</h2>
+          <p className="text-note">{t('settings.groupsHint')}</p>
+          <div className="settings-section">
+            {user ? (
+              <GroupAdminPanel locale={locale} currentUserId={user.id} />
+            ) : (
+              <p className="text-muted">{t('settings.groupsEmpty')}</p>
+            )}
           </div>
         </div>
 

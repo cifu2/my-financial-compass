@@ -1,4 +1,5 @@
 import type { Locale } from './dates'
+import { parseDate, toIsoDate, todayIso } from './dates'
 
 export const messages = {
   es: {
@@ -183,26 +184,22 @@ export function isValidDate(): Validator {
 export function notBeforeToday(): Validator {
   return (value, { locale }) => {
     if (value === undefined || value === null || String(value).trim() === '') return null
-    const s = String(value).trim()
-    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s)
-    if (!match) return null
-    const date = new Date(Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1])))
-    const today = new Date()
-    today.setUTCHours(0, 0, 0, 0)
-    return date < today ? formatMessage(locale, 'date.future') : null
+    const date = parseDate(String(value).trim())
+    if (!date) return null
+    return toIsoDate(date) < todayIso()
+      ? formatMessage(locale, 'date.future')
+      : null
   }
 }
 
 export function notInFuture(): Validator {
   return (value, { locale }) => {
     if (value === undefined || value === null || String(value).trim() === '') return null
-    const s = String(value).trim()
-    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s)
-    if (!match) return null
-    const date = new Date(Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1])))
-    const today = new Date()
-    today.setUTCHours(0, 0, 0, 0)
-    return date > today ? formatMessage(locale, 'date.notFuture') : null
+    const date = parseDate(String(value).trim())
+    if (!date) return null
+    return toIsoDate(date) > todayIso()
+      ? formatMessage(locale, 'date.notFuture')
+      : null
   }
 }
 

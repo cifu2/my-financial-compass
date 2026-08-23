@@ -5,6 +5,7 @@ import type {
   InvestmentOwnership,
 } from '../features/investments/types'
 import type { RecurringTransaction } from '../features/recurring/types'
+import type { ExpenseSplit, Settlement } from '../features/splits/types'
 import type { Locale } from './dates'
 
 export interface PersistedState {
@@ -19,6 +20,10 @@ export interface PersistedState {
   recurrings: RecurringTransaction[]
   /** Active budget context group id (null/absent = personal view, HU-0.8). */
   budgetGroupId?: string | null
+  /** Group expense splits (HU-0.7): one per shared transaction. */
+  expenseSplits?: ExpenseSplit[]
+  /** Recorded member-to-member payments (HU-0.7), append-only history. */
+  settlements?: Settlement[]
 }
 
 export interface Transaction {
@@ -190,6 +195,52 @@ function isBoolean(value: unknown): value is boolean {
   return typeof value === 'boolean'
 }
 
+function expenseSplitFrom(value: unknown): ExpenseSplit | null {
+  if (!isRecord(value)) return null
+  const { transactionId, groupId, paidBy, method, shares } = value
+  if (
+    !isString(transactionId) ||
+    !isString(groupId) ||
+    !isString(paidBy) ||
+    (method !== 'equal' && method !== 'percentages' && method !== 'amounts' && method !== 'weights') ||
+    !Array.isArray(shares)
+  ) {
+    return null
+  }
+  const cleanShares: ExpenseSplit['shares'] = []
+  for (const share of shares) {
+    if (!isRecord(share) || !isString(share.userId) || !isNumber(share.amount)) return null
+    cleanShares.push({ userId: share.userId, amount: share.amount })
+  }
+  return { transactionId, groupId, paidBy, method, shares: cleanShares }
+}
+
+function settlementFrom(value: unknown): Settlement | null {
+  if (!isRecord(value)) return null
+  const { id, groupId, fromUserId, toUserId, amount, date, createdAt } = value
+  if (
+    !isString(id) ||
+    !isString(groupId) ||
+    !isString(fromUserId) ||
+    !isString(toUserId) ||
+    !isNumber(amount) ||
+    !isString(date) ||
+    !isString(createdAt)
+  ) {
+    return null
+  }
+  return {
+    id,
+    groupId,
+    fromUserId,
+    toUserId,
+    amount,
+    date,
+    createdAt,
+    note: asOptionalString(value.note),
+  }
+}
+
 /**
  * Parse a persisted blob strictly. Returns `null` when the blob is not a
  * valid state object (corrupt or from an incompatible schema), so callers
@@ -229,6 +280,14 @@ export function parsePersistedState(raw: string): PersistedState | null {
     Array.isArray(parsed.recurrings) ? parsed.recurrings : [],
     recurringFrom,
   )
+  const expenseSplits = dropNulls(
+    Array.isArray(parsed.expenseSplits) ? parsed.expenseSplits : [],
+    expenseSplitFrom,
+  )
+  const settlements = dropNulls(
+    Array.isArray(parsed.settlements) ? parsed.settlements : [],
+    settlementFrom,
+  )
 
   return {
     version: STORAGE_VERSION,
@@ -241,6 +300,8 @@ export function parsePersistedState(raw: string): PersistedState | null {
     budgets,
     recurrings,
     budgetGroupId: asOptionalString(parsed.budgetGroupId) ?? null,
+    expenseSplits,
+    settlements,
   }
 }
 

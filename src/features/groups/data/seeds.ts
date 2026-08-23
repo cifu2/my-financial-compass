@@ -20,6 +20,7 @@ export function seedGroupSnapshot(): GroupSnapshot {
     groups: seedGroups(),
     members: seedMembers(),
     invitations: seedInvitations(),
+    activities: [],
   }
 }
 

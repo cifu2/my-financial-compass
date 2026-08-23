@@ -1,8 +1,40 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Coherencia de fechas "hoy" UTC/local (ADR-0014, COMPLETADO)
+
+- **Definición única de "hoy"**: `todayIso()` (fecha local) como fuente de
+  verdad. Los formularios (transacción, recurrente, liquidación) ya no usan
+  `formatDate(new Date(), locale)` (formateo UTC), que devolvía *ayer* como
+  "hoy" en zonas UTC+2/UTC+1 entre las 00:00 y las 02:00.
+- **Validadores coherentes**: `notInFuture`, `notBeforeToday` e `isFutureOnly`
+  comparan el ISO de la fecha parseada contra `todayIso()` (sin aritmética UTC
+  con `Date.setUTCHours`). Una fecha legítimamente "hoy" nunca se rechaza.
+- **Tests alineados**: helpers de fecha en `RecurringPage.test` y
+  `TransactionsPage.test` generan el ISO local en lugar del formato UTC,
+  eliminando la flakiness en la franja nocturna. Suite **367/367**.
+- [ADR-0014](docs/adr/0014-today-utc-local.md)
+
 ## Resumen Ejecutivo
 
 El proyecto está operativo con **build limpio, tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), el **modelo multiusuario con grupos** (HU-0.4/0.8/0.9, MYF-19..27) y el **sistema de permisos por rol** (HU-0.10, MYF-28), con persistencia, loading states y error boundary global.
+
+## ✅ Actividad del grupo y borrado con doble confirmación (HU-0.11/HU-0.12, MYF-29 COMPLETADO)
+
+- **Auditoría `GroupActivity`** (`groupId`, `userId`, `action`, `details`, `timestamp`) persistida en el snapshot de grupos (retrocompatible, `version:1`), append-only con límite por grupo y orden cronológico descendente.
+- **Registro automático** en cada acción relevante: transacciones de grupo (alta/borrado), reparto, liquidaciones, inversiones, presupuestos, recurrentes, alta/baja de miembros, roles, invitaciones y operaciones del grupo.
+- **Pantalla de actividad** `/grupos/:id/actividad` con filtros por miembro y tipo de acción, frases i18n ("Luis añadió Supermercado 82,00 €", "Ana liquidó 45,00 € a José"); enlazada desde Balances y desde Configuración → Grupos.
+- **Borrado con doble confirmación**: diálogo en dos pasos (archivar vs. eliminar + aviso a los miembros; luego teclear el nombre del grupo). `archiveGroup` conserva datos y actividad (`archivedAt`), `restoreGroup` lo reactiva; `deleteGroup` permite a un admin borrar un grupo con miembros y el fronted purga los datos financieros del grupo (`removeGroupData`).
+- **Tests**: servicio de actividad, mensajes i18n, pantalla de actividad con filtros y panel de grupos con doble confirmación → suite total **367** en verde.
+- [ADR-0013](docs/adr/0013-group-activity-deletion.md)
+
+## ✅ División de gastos y balances de deudas (HU-0.7, MYF-27 COMPLETADO)
+
+- **Modelo**: `features/splits` — `ExpenseSplit` (transactionId, groupId, paidBy, method, shares[]) y `Settlement` (groupId, from, to, amount, date) persistidos en el snapshot financiero; `DebtBalance` es una vista derivada (nunca se almacena) para no quedar obsoleta al borrar gastos o liquidar.
+- **Reparto**: `computeSplit` (puro, en céntimos exactos) soporta **partes iguales, porcentajes, importes fijos y ponderaciones** con validación de que la suma cuadre con el total antes de guardar (`percentages-sum`, `amounts-sum`, …).
+- **Balances**: algoritmo de neteo per-member → simplificación "deudor mayor paga acreedor mayor" → filas tipo "Ana debe 45 € a Luis".
+- **UI**: selector de contexto + "Compartir este gasto" + `SplitEditor` en el formulario de transacciones; nueva ruta `/balances` con deudas pendientes, resumen por miembro, registro de liquidaciones e histórico (borrado con confirmación + undo).
+- **Tests**: 38 nuevos (splitCalculator, balances/settlements, storageService round-trip, flujo transacción-compartida y pantalla de balances) → suite total **351+**.
+- [ADR-0012](docs/adr/0012-splits-balances.md)
 
 ## ✅ Permisos por rol (HU-0.10, MYF-28 COMPLETADO)
 

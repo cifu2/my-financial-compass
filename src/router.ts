@@ -6,6 +6,8 @@ export type SectionKey =
   | 'recurring'
   | 'budgets'
   | 'investments'
+  | 'balances'
+  | 'groupActivity'
   | 'settings'
 
 /** Guest-only auth screens (outside the main nav). */
@@ -18,6 +20,8 @@ export interface Route {
   path: string
   label: string
   crumb: string
+  /** Route params captured from a dynamic path (e.g. the group id). */
+  params?: Record<string, string>
 }
 
 export const ROUTES: Route[] = [
@@ -26,6 +30,8 @@ export const ROUTES: Route[] = [
   { key: 'recurring', path: '/recurring', label: 'Recurring', crumb: 'Recurring' },
   { key: 'budgets', path: '/budgets', label: 'Budgets', crumb: 'Budgets' },
   { key: 'investments', path: '/investments', label: 'Investments', crumb: 'Investments' },
+  { key: 'balances', path: '/balances', label: 'Balances', crumb: 'Balances' },
+  { key: 'groupActivity', path: '/grupos/:grupoId/actividad', label: 'Actividad del grupo', crumb: 'Actividad' },
   { key: 'settings', path: '/settings', label: 'Settings', crumb: 'Settings' },
 ]
 
@@ -56,7 +62,26 @@ export function matchRoute(path: string): Route {
   if (section) return section
   const auth = AUTH_ROUTES.find((r) => r.path === normalized)
   if (auth) return { key: auth.key, path: normalized, label: auth.key, crumb: auth.key }
+  const dynamic = ROUTES.find((r) => r.path.includes(':'))
+  if (dynamic) {
+    const segments = dynamic.path.split('/').filter(Boolean)
+    const parts = normalized.split('/').filter(Boolean)
+    if (segments.length === parts.length) {
+      const params: Record<string, string> = {}
+      let matches = true
+      for (let i = 0; i < segments.length; i += 1) {
+        if (segments[i].startsWith(':')) params[segments[i].slice(1)] = parts[i]
+        else if (segments[i] !== parts[i]) matches = false
+      }
+      if (matches) return { ...dynamic, params }
+    }
+  }
   return DEFAULT_ROUTE
+}
+
+/** Hash href for a group's activity screen. */
+export function groupActivityHref(groupId: string): string {
+  return `#/grupos/${encodeURIComponent(groupId)}/actividad`
 }
 
 export function useRoute(): { route: Route; navigate: (route: Route) => void } {

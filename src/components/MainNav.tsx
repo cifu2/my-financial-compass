@@ -11,10 +11,11 @@ interface MainNavProps {
  * section with aria-current="page".
  */
 export function MainNav({ current, onNavigate }: MainNavProps) {
+  const sections = ROUTES.filter((route) => !route.path.includes(':'))
   return (
     <nav className="main-nav" aria-label="Main navigation">
       <ul>
-        {ROUTES.map((route) => {
+        {sections.map((route) => {
           const active = route.key === current.key
           const classes = `nav-item${active ? ' nav-item--active' : ''}`
           return (

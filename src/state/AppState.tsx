@@ -8,6 +8,7 @@ import type { RecurringTransaction, OccurrenceOverride } from '../features/recur
 import { materializeDue, generationGuardFor } from '../features/recurring/services/recurrenceService'
 import { readSessionUser } from '../features/auth/services/authService'
 import { loadGroupSnapshot } from '../features/groups/services/groupStore'
+import { recordGroupActivity } from '../features/groups/services/groupActivity'
 import { PREDEFINED_CATEGORIES } from '../features/categories/data/predefined'
 import {
   demoBudgets,
@@ -18,6 +19,7 @@ import {
 import { loadPersistedState, savePersistedState } from '../lib/storageService'
 
 export type { Category } from '../features/categories/types'
+import type { ExpenseSplit, Settlement } from '../features/splits/types'
 
 export interface Transaction {
   id: string
@@ -61,10 +63,11 @@ export interface InvestmentOwnership {
 }
 
 export type UndoEntity =
-  | { kind: 'transaction'; item: Transaction }
+  | { kind: 'transaction'; item: Transaction; split?: ExpenseSplit }
   | { kind: 'category'; item: Category }
   | { kind: 'investment'; item: Investment; ownership?: InvestmentOwnership[] }
   | { kind: 'budget'; item: Budget }
+  | { kind: 'settlement'; item: Settlement }
 
 interface Storage {
   locale: Locale
@@ -76,6 +79,10 @@ interface Storage {
   recurrings: RecurringTransaction[]
   /** Active budget context group id (null/absent = personal view, HU-0.8). */
   budgetGroupId: string | null
+  /** Group expense splits (HU-0.7): one per shared transaction. */
+  expenseSplits: ExpenseSplit[]
+  /** Recorded member-to-member payments (HU-0.7), append-only history. */
+  settlements: Settlement[]
 }
 
 export interface AppState {
@@ -95,9 +102,22 @@ export interface AppState {
   isBooting: boolean
   /** When true, the last write to localStorage failed (e.g. quota). */
   storageError: boolean
-  addTransaction: (t: Omit<Transaction, 'id'>) => void
+  addTransaction: (
+    t: Omit<Transaction, 'id'>,
+    split?: Omit<ExpenseSplit, 'transactionId'>,
+  ) => void
   /** Reassign or edit an existing transaction (HU-0.6, MYF-22). */
   updateTransaction: (id: string, patch: Partial<Omit<Transaction, 'id'>>) => void
+  /** Create or replace the split of an existing group transaction. */
+  setTransactionSplit: (transactionId: string, split: ExpenseSplit | null) => void
+  addSettlement: (s: Omit<Settlement, 'id' | 'createdAt'>) => void
+  removeSettlement: (id: string) => void
+  /**
+   * Drops every financial row scoped to `groupId` (transactions, splits,
+   * settlements, investments, budgets, recurring). Used by the group
+   * dissolution flow (HU-0.12) after the group snapshot itself is removed.
+   */
+  removeGroupData: (groupId: string) => void
   addCategory: (c: Omit<Category, 'id'>) => void
   updateCategory: (id: string, c: Partial<Omit<Category, 'id'>>) => void
   addInvestment: (i: Omit<Investment, 'id'>, ownerships?: InvestmentOwnership[]) => void
@@ -177,6 +197,12 @@ export function AppStateProvider({
   const [budgetGroupId, setBudgetGroupId] = useState<string | null>(
     initialStore?.budgetGroupId ?? null,
   )
+  const [expenseSplits, setExpenseSplits] = useState<ExpenseSplit[]>(
+    initialStore?.expenseSplits ?? [],
+  )
+  const [settlements, setSettlements] = useState<Settlement[]>(
+    initialStore?.settlements ?? [],
+  )
   const [storageError, setStorageError] = useState(false)
   // Tests that inject `initialStore` get a synchronous store; otherwise the
   // provider boots asynchronously and the app shell shows the skeleton.
@@ -201,6 +227,8 @@ export function AppStateProvider({
         setBudgets(loaded.budgets)
         setRecurrings(loaded.recurrings)
         setBudgetGroupId(loaded.budgetGroupId ?? null)
+        setExpenseSplits(loaded.expenseSplits ?? [])
+        setSettlements(loaded.settlements ?? [])
       }
       setIsBooting(false)
     }, bootDelayMs)
@@ -236,12 +264,14 @@ export function AppStateProvider({
       budgets,
       recurrings,
       budgetGroupId,
+      expenseSplits,
+      settlements,
     })
     // Persist on state change; reporting the write result is a side effect
     // of the same effect, so the setState here is intentional.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStorageError(error !== null)
-  }, [locale, transactions, categories, investments, investmentOwnerships, budgets, recurrings, budgetGroupId, initialStore, isBooting])
+  }, [locale, transactions, categories, investments, investmentOwnerships, budgets, recurrings, budgetGroupId, expenseSplits, settlements, initialStore, isBooting])
 
   const syncDue = useMemo(
     () => (): number => {
@@ -296,23 +326,105 @@ export function AppStateProvider({
       budgets,
       recurrings,
       budgetGroupId,
+      expenseSplits,
+      settlements,
     },
     setBudgetGroupId: (groupId) => setBudgetGroupId(groupId),
-    addTransaction: (t) => {
+    addTransaction: (t, split) => {
       // Stamp the owner so personal budgets only count own spending and group
       // budgets can break down consumption per member (HU-0.8).
       const owner = readSessionUser()?.id
+      const id = now('tx')
       const stamped: Transaction = {
         ...t,
-        id: now('tx'),
+        id,
         userId: t.userId === undefined ? (owner ?? undefined) : t.userId,
       }
       setTransactions((prev) => [...prev, stamped])
+      if (split) {
+        setExpenseSplits((prev) => [
+          ...prev.filter((s) => s.transactionId !== id),
+          { ...split, transactionId: id },
+        ])
+      }
+      if (t.groupId && owner) {
+        recordGroupActivity({
+          groupId: t.groupId,
+          userId: owner,
+          action: 'transaction_added',
+          details: { concept: t.concept, amount: t.amount, type: t.type },
+        })
+        if (split) {
+          recordGroupActivity({
+            groupId: t.groupId,
+            userId: owner,
+            action: 'split_set',
+            details: {
+              concept: t.concept,
+              count: split.shares.length,
+              method: split.method,
+            },
+          })
+        }
+      }
     },
     updateTransaction: (id, patch) =>
       setTransactions((prev) =>
         prev.map((x) => (x.id === id ? { ...x, ...patch } : x)),
       ),
+    setTransactionSplit: (transactionId, split) => {
+      const previous = transactionsRef.current.find((x) => x.id === transactionId)
+      setExpenseSplits((prev) =>
+        split === null
+          ? prev.filter((s) => s.transactionId !== transactionId)
+          : [
+              ...prev.filter((s) => s.transactionId !== transactionId),
+              { ...split, transactionId },
+            ],
+      )
+      const owner = readSessionUser()?.id
+      if (split && previous?.groupId && owner) {
+        recordGroupActivity({
+          groupId: previous.groupId,
+          userId: owner,
+          action: 'split_set',
+          details: { concept: previous.concept, count: split.shares.length },
+        })
+      }
+    },
+    addSettlement: (s) => {
+      setSettlements((prev) => [
+        { ...s, id: now('set'), createdAt: new Date().toISOString() },
+        ...prev,
+      ])
+      const owner = readSessionUser()?.id
+      if (owner) {
+        recordGroupActivity({
+          groupId: s.groupId,
+          userId: owner,
+          action: 'settlement_added',
+          details: {
+            amount: s.amount,
+            fromUserId: s.fromUserId,
+            toUserId: s.toUserId,
+            recipientId: s.toUserId,
+          },
+        })
+      }
+    },
+    removeSettlement: (id) => {
+      const target = settlements.find((s) => s.id === id)
+      setSettlements((prev) => prev.filter((s) => s.id !== id))
+      const owner = readSessionUser()?.id
+      if (target && owner) {
+        recordGroupActivity({
+          groupId: target.groupId,
+          userId: owner,
+          action: 'settlement_removed',
+          details: { amount: target.amount },
+        })
+      }
+    },
     addCategory: (c) => setCategories((prev) => [...prev, { ...c, id: now('cat') }]),
     updateCategory: (id, c) =>
       setCategories((prev) =>
@@ -327,25 +439,74 @@ export function AppStateProvider({
           ...ownerships.map((o) => ({ ...o, investmentId: id })),
         ])
       }
+      const owner = readSessionUser()?.id
+      if (i.groupId && owner) {
+        recordGroupActivity({
+          groupId: i.groupId,
+          userId: owner,
+          action: 'investment_added',
+          details: { name: i.name },
+        })
+      }
     },
-    updateInvestment: (id, patch) =>
-      setInvestments((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x))),
+    updateInvestment: (id, patch) => {
+      const previous = investments.find((x) => x.id === id)
+      setInvestments((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)))
+      if (previous && patch.groupId) {
+        recordGroupActivity({
+          groupId: patch.groupId,
+          userId: readSessionUser()?.id ?? 'system',
+          action: 'investment_updated',
+          details: { name: patch.name ?? previous.name },
+        })
+      }
+    },
     setInvestmentOwnerships: (investmentId, ownerships) =>
       setInvestmentOwnerships((prev) => [
         ...prev.filter((o) => o.investmentId !== investmentId),
         ...ownerships,
       ]),
-    addBudget: (b) => setBudgets((prev) => [...prev, { ...b, id: now('bg') }]),
+    addBudget: (b) => {
+      setBudgets((prev) => [...prev, { ...b, id: now('bg') }])
+      if (b.groupId) {
+        const category = categories.find((c) => c.id === b.categoryId)
+        recordGroupActivity({
+          groupId: b.groupId,
+          userId: readSessionUser()?.id ?? 'system',
+          action: 'budget_added',
+          details: { category: category?.name ?? '', limit: b.limit },
+        })
+      }
+    },
     updateBudget: (id, b) =>
       setBudgets((prev) => prev.map((x) => (x.id === id ? { ...x, ...b } : x))),
-    addRecurring: (r) =>
-      setRecurrings((prev) => [...prev, { ...r, id: now('rec') }]),
+    addRecurring: (r) => {
+      setRecurrings((prev) => [...prev, { ...r, id: now('rec') }])
+      if (r.groupId) {
+        recordGroupActivity({
+          groupId: r.groupId,
+          userId: readSessionUser()?.id ?? 'system',
+          action: 'recurring_added',
+          details: { concept: r.template.concept, amount: r.template.amount },
+        })
+      }
+    },
     updateRecurring: (id, patch) =>
       setRecurrings((prev) =>
         prev.map((x) => (x.id === id ? { ...x, ...patch } : x)),
       ),
-    removeRecurring: (id) =>
-      setRecurrings((prev) => prev.filter((x) => x.id !== id)),
+    removeRecurring: (id) => {
+      const target = recurrings.find((x) => x.id === id)
+      setRecurrings((prev) => prev.filter((x) => x.id !== id))
+      if (target?.groupId) {
+        recordGroupActivity({
+          groupId: target.groupId,
+          userId: readSessionUser()?.id ?? 'system',
+          action: 'recurring_removed',
+          details: { concept: target.template.concept },
+        })
+      }
+    },
     setRecurringActive: (id, isActive) =>
       setRecurrings((prev) =>
         prev.map((x) => (x.id === id ? { ...x, isActive } : x)),
@@ -359,22 +520,64 @@ export function AppStateProvider({
         }),
       ),
     remove: (entity) => {
+      const owner = readSessionUser()?.id
       if (entity.kind === 'transaction') {
+        if (entity.item.groupId && owner) {
+          recordGroupActivity({
+            groupId: entity.item.groupId,
+            userId: owner,
+            action: 'transaction_removed',
+            details: { concept: entity.item.concept, amount: entity.item.amount },
+          })
+        }
         setTransactions((prev) => prev.filter((x) => x.id !== entity.item.id))
+        setExpenseSplits((prev) =>
+          prev.filter((s) => s.transactionId !== entity.item.id),
+        )
       } else if (entity.kind === 'category') {
         setCategories((prev) => prev.filter((x) => x.id !== entity.item.id))
       } else if (entity.kind === 'investment') {
+        if (entity.item.groupId && owner) {
+          recordGroupActivity({
+            groupId: entity.item.groupId,
+            userId: owner,
+            action: 'investment_removed',
+            details: { name: entity.item.name },
+          })
+        }
         setInvestments((prev) => prev.filter((x) => x.id !== entity.item.id))
         setInvestmentOwnerships((prev) =>
           prev.filter((o) => o.investmentId !== entity.item.id),
         )
+} else if (entity.kind === 'settlement') {
+        if (owner) {
+          recordGroupActivity({
+            groupId: entity.item.groupId,
+            userId: owner,
+            action: 'settlement_removed',
+            details: { amount: entity.item.amount },
+          })
+        }
+        setSettlements((prev) => prev.filter((s) => s.id !== entity.item.id))
       } else {
+        if (entity.item.groupId && owner) {
+          recordGroupActivity({
+            groupId: entity.item.groupId,
+            userId: owner,
+            action: 'budget_removed',
+            details: { category: '' },
+          })
+        }
         setBudgets((prev) => prev.filter((x) => x.id !== entity.item.id))
       }
     },
     restore: (entity) => {
       if (entity.kind === 'transaction') {
+        const split = entity.split
         setTransactions((prev) => [...prev, entity.item])
+        if (split) {
+          setExpenseSplits((prev) => [...prev, split])
+        }
       } else if (entity.kind === 'category') {
         setCategories((prev) => [...prev, entity.item])
       } else if (entity.kind === 'investment') {
@@ -384,9 +587,26 @@ export function AppStateProvider({
           ...prev.filter((o) => o.investmentId !== entity.item.id),
           ...ownership,
         ])
+      } else if (entity.kind === 'settlement') {
+        setSettlements((prev) => [...prev, entity.item])
       } else {
         setBudgets((prev) => [...prev, entity.item])
       }
+    },
+    removeGroupData: (groupId) => {
+      setTransactions((prev) => prev.filter((x) => x.groupId !== groupId))
+      setExpenseSplits((prev) => prev.filter((s) => s.groupId !== groupId))
+      setSettlements((prev) => prev.filter((s) => s.groupId !== groupId))
+      setInvestments((prev) => prev.filter((x) => x.groupId !== groupId))
+      setInvestmentOwnerships((prev) => [
+        ...prev.filter((o) => {
+          const inv = investments.find((i) => i.id === o.investmentId)
+          return inv === undefined || inv.groupId !== groupId
+        }),
+      ])
+      setBudgets((prev) => prev.filter((x) => x.groupId !== groupId))
+      setRecurrings((prev) => prev.filter((x) => x.groupId !== groupId))
+      if (budgetGroupId === groupId) setBudgetGroupId(null)
     },
     loadDemo: () => {
       setTransactions(demoTransactions)
@@ -394,6 +614,8 @@ export function AppStateProvider({
       setBudgets(demoBudgets)
       setInvestments(demoInvestments)
       setInvestmentOwnerships([])
+      setExpenseSplits([])
+      setSettlements([])
     },
     syncDue,
   }
