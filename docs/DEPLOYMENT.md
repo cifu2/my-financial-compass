@@ -6,9 +6,13 @@ no requiere servidor backend.
 
 ## Estado
 
-- **🟢 DESPLEGADO en producción (2026-08-22)** — https://my-financial-compass-eight.vercel.app
-  (alias production `my-financial-compass-eight.vercel.app`, proyecto
-  `prj_srkaWNp8lTPVizoiQGzZxWxE74rr` bajo team de `cifuwork-2872`).
+- **🟢 DESPLEGADO en producción (2026-08-23)** —
+  https://my-financial-compass-eight.vercel.app sirve `main` HEAD (`130f32b`):
+  incluye autenticación (MYF-20), grupos y balances (bundle `index-HeC1Qe36.js`).
+  (alias production, proyecto `prj_srkaWNp8lTPVizoiQGzZxWxE74rr` bajo team de
+  `cifuwork-2872`).
+- **Preview con `main` (referencia del deploy)**:
+  https://my-financial-compass-rcwuomo0d-manuel-s-projects-577c9a99.vercel.app
 - App accesible (HTTP 200), HTTPS activo (`CN=*.vercel.app`) y título correcto:
   `My Financial Compass | Finanzas personales`.
 - Repo GitHub público: https://github.com/cifu2/my-financial-compass (rama `main`).
