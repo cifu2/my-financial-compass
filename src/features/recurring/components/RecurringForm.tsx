@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { TextField, SelectField } from '../../../components/FormField'
 import { CategoryPicker } from '../../categories/components/CategoryPicker'
@@ -129,7 +129,7 @@ export function RecurringForm({
   /** Groups the member can attach the rule to; absent => personal only. */
   groups?: readonly RecurringGroupOption[]
 }) {
-  const t = (key: UIKey) => translate(locale, key)
+  const t = useCallback((key: UIKey) => translate(locale, key), [locale])
 
   const [form, setForm] = useState<FormState>(() =>
     initial

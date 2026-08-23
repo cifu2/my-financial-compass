@@ -72,7 +72,7 @@ function emptyTx(locale: 'es' | 'en', groupId = ''): TxForm {
 export default function TransactionsPage() {
   const { locale, store, addTransaction, updateTransaction, remove, restore } =
     useAppState()
-  const t = (key: UIKey) => translate(locale, key)
+  const t = useCallback((key: UIKey) => translate(locale, key), [locale])
 
   // ---- current user + their groups (context-aware, MYF-22 / HU-0.6)
   const currentUserId = readSessionUser()?.id ?? null
