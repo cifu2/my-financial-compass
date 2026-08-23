@@ -1,0 +1,53 @@
+/* Transactions feature styles (MYF-22, HU-0.6) --------------------------- */
+
+/* List header + group context filter. Mirrors the recurring list */
+/* so the transactions list answers "which rows does this context see?"  */
+
+.tx-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.tx-list-header h2 {
+  margin: 0;
+}
+
+.tx-context-filter select {
+  min-width: 12rem;
+}
+
+@media (max-width: 640px) {
+  .tx-list-header {
+    align-items: stretch;
+  }
+  .tx-context-filter select {
+    width: 100%;
+  }
+}
+
+/* Creator annotation under the concept ("Añadido por Ana") */
+.tx-added-by {
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 0.1rem;
+}
+
+/* Inline origin tag next to group rows */
+.tx-description .origin-tag {
+  margin-left: 0.4rem;
+}
+
+.tx-description {
+  display: block;
+}
+
+.tx-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}

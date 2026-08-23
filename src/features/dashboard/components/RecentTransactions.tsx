@@ -12,6 +12,13 @@ export interface RecentTransactionsProps {
   locale: Locale
   emptyText: string
   viewAllLabel: string
+  /**
+   * When true, a leading "Origen" column tags each row (personal or group).
+   * Used by the consolidated "Todo" dashboard context (HU-0.5).
+   */
+  showOrigin?: boolean
+  originFor?: (transaction: Transaction) => string
+  originHeader?: string
 }
 
 /**
@@ -24,6 +31,9 @@ export function RecentTransactions({
   locale,
   emptyText,
   viewAllLabel,
+  showOrigin = false,
+  originFor,
+  originHeader,
 }: RecentTransactionsProps) {
   const categoryName = new Map<string, string>(
     categories.map((c) => [c.id, c.name]),
@@ -40,6 +50,7 @@ export function RecentTransactions({
       <table className="data-table">
         <thead>
           <tr>
+            {showOrigin && originHeader && <th scope="col">{originHeader}</th>}
             <th scope="col">{t('fld.date')}</th>
             <th scope="col">{t('fld.description')}</th>
             <th scope="col">{t('fld.category')}</th>
@@ -51,6 +62,13 @@ export function RecentTransactions({
         <tbody>
           {transactions.map((item) => (
             <tr key={item.id}>
+              {showOrigin && (
+                <td>
+                  <span className="origin-tag">
+                    {originFor ? originFor(item) : '—'}
+                  </span>
+                </td>
+              )}
               <td>{formatDate(item.date, locale)}</td>
               <td>{item.concept}</td>
               <td>{categoryName.get(item.categoryId) ?? '—'}</td>

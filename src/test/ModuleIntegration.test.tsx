@@ -34,6 +34,7 @@ function seedStore(budgets: Budget[] = []) {
     transactions: [],
     categories: PREDEFINED_CATEGORIES,
     investments: [],
+    investmentOwnerships: [],
     budgets,
     recurrings: [],
   })
@@ -252,6 +253,45 @@ describe('Module-to-module integration (MYF-14)', () => {
       .getByRole('heading', { name: 'Patrimonio neto' })
       .closest('.panel') as HTMLElement
     expect(await within(panel).findByText('ETF MSCI World', {}, { timeout: 6000 })).toBeInTheDocument()
+    expect(within(panel).getAllByText(/1\.?200,00/).length).toBeGreaterThan(0)
+  })
+
+  it('values a shared group investment proportionally in the personal net worth', async () => {
+    seedStore([])
+    // Ana already owns 60% of a group asset in the Hogar group.
+    savePersistedState({
+      locale: 'es',
+      transactions: [],
+      categories: PREDEFINED_CATEGORIES,
+      investments: [
+        {
+          id: 'inv-g1',
+          name: 'Piso compartido',
+          type: 'funds',
+          purchaseDate: '2026-01-10',
+          quantity: 1,
+          investedAmount: 1000,
+          currentValue: 2000,
+          currency: 'EUR',
+          groupId: 'grp-hogar',
+          createdBy: 'seeded-user',
+        },
+      ],
+      investmentOwnerships: [
+        { investmentId: 'inv-g1', userId: 'seeded-user', percentage: 60 },
+        { investmentId: 'inv-g1', userId: 'usr-jose', percentage: 40 },
+      ],
+      budgets: [],
+      recurrings: [],
+    })
+    await renderAt('#/dashboard')
+    await awaitDashboard()
+
+    // Personal net worth: 2000 × 60 % = 1200,00 (proportional share).
+    const panel = screen
+      .getByRole('heading', { name: 'Patrimonio neto' })
+      .closest('.panel') as HTMLElement
+    expect(await within(panel).findByText('Piso compartido')).toBeInTheDocument()
     expect(within(panel).getAllByText(/1\.?200,00/).length).toBeGreaterThan(0)
   })
 

@@ -3,6 +3,10 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { AppStateProvider, type Category, type Transaction } from '../../state/AppState'
 import BudgetsPage from '../../pages/BudgetsPage'
 import type { Budget } from './types'
+import { buildSeededSnapshot } from '../auth/services/authService'
+import { AUTH_STORAGE_KEY } from '../auth/services/authStore'
+import { seedGroupSnapshot } from '../groups/data/seeds'
+import { persistGroupSnapshot } from '../groups/services/groupStore'
 
 /** An ISO yyyy-mm-dd date for a fixed calendar day of the current month. */
 function thisMonth(day: number): string {
@@ -152,5 +156,45 @@ describe('BudgetsPage (budget definition)', () => {
 
     const cards = Array.from(document.querySelectorAll('.budget-card'))
     expect(cards.some((c) => c.textContent?.includes('Food & Groceries'))).toBe(true)
+  })
+})
+
+/** Seeds an authenticated session. The group snapshot is installed per-test. */
+describe('BudgetsPage permissions (HU-0.10)', () => {
+  function renderGroup(userId: string, groupSnapshot: ReturnType<typeof seedGroupSnapshot>) {
+    const auth = buildSeededSnapshot({ id: userId, email: 'u@example.com', name: 'U', password: 'pass1234' })
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth))
+    persistGroupSnapshot(groupSnapshot)
+    return render(
+      <AppStateProvider
+        initialStore={{ categories, transactions, budgets, budgetGroupId: 'grp-hogar' }}
+      >
+        <BudgetsPage />
+      </AppStateProvider>,
+    )
+  }
+
+  it('shows the form and actions for a group admin', () => {
+    renderGroup('usr-ana', seedGroupSnapshot())
+    expect(screen.queryAllByRole('alert')).toHaveLength(0)
+    expect(screen.getByRole('combobox', { name: CATEGORY_RE })).toBeInTheDocument()
+  })
+
+  it('hides the form and management actions for a read-only group member', () => {
+    const snapshot = seedGroupSnapshot()
+    const jose = snapshot.members.find((m) => m.groupId === 'grp-hogar' && m.userId === 'usr-jose')
+    if (jose) jose.role = 'readonly'
+    renderGroup('usr-jose', snapshot)
+    expect(screen.queryByRole('combobox', { name: CATEGORY_RE })).toBeNull()
+    expect(screen.getByRole('alert').textContent).toMatch(/solo lectura|read-only/i)
+  })
+
+  it('does not allow members when the group revokes budget management', () => {
+    const snapshot = seedGroupSnapshot()
+    const grp = snapshot.groups.find((g) => g.id === 'grp-hogar')
+    if (grp) grp.settings = { membersCanManageBudgets: false }
+    renderGroup('usr-jose', snapshot)
+    expect(screen.queryByRole('combobox', { name: CATEGORY_RE })).toBeNull()
+    expect(screen.getByRole('alert').textContent).toMatch(/no pueden gestionar presupuestos|members cannot manage budgets/i)
   })
 })

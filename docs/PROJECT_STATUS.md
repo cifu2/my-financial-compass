@@ -2,7 +2,16 @@
 
 ## Resumen Ejecutivo
 
-El proyecto está operativo con **build limpio, 243 tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), con persistencia, loading states y error boundary global.
+El proyecto está operativo con **build limpio, tests pasando, lint sin errores**. Todos los módulos previstos están implementados (transacciones, recurrentes, presupuestos, inversiones, dashboard) **más el sistema de autenticación de usuarios** (HU-0.1), el **modelo multiusuario con grupos** (HU-0.4/0.8/0.9, MYF-19..27) y el **sistema de permisos por rol** (HU-0.10, MYF-28), con persistencia, loading states y error boundary global.
+
+## ✅ Permisos por rol (HU-0.10, MYF-28 COMPLETADO)
+
+- **Matriz declarativa** en `features/groups/permissions.ts`: `ROLE_CAPABILITIES` + `can(role, capability)` cubre "ver datos", "crear/editar", "invitar/expulsar/cambiar roles" y "borrar grupo" exactamente como la HU.
+- **Ownership-aware**: `canEditData`/`canDeleteData` — el admin edita/borra cualquier fila del grupo; el **miembro solo las suyas** (`transaction.userId`, `investment.createdBy`); `readonly` nunca muta.
+- **Configurable por grupo**: `Group.settings.membersCanManageBudgets|Investments` revocan a los miembros la gestión de presupuestos/inversiones (parseo estricto en `groupStore`, guardado vía `groupService.updateGroup` admin-only).
+- **Acceso resuelto**: `features/groups/access.ts` (`groupAccessFor`) expone `canView/canEdit/canManageBudgets/canManageInvestments/canManageMembers/canDeleteGroup` y los checks por registro para el usuario+grupo activo.
+- **UI que oculta/muestra**: `PermissionNotice` accesible (`role="alert"`) + gating en Presupuestos (form/acciones ocultos sin `budget.manage`), Inversiones (`investment.manage` + propiedad en eliminar) y Recurrentes (`canManage` por fila en `RecurringList`).
+- **Tests**: matriz completa, ownership, settings, persistencia y gating de UI (suite total estable). [ADR-0010](docs/adr/0010-permissions.md)
 
 ## ✅ Autenticación de usuarios (MYF-20 COMPLETADO)
 
@@ -34,11 +43,40 @@ El proyecto está operativo con **build limpio, 243 tests pasando, lint sin erro
 - **BudgetsPage**: CRUD completo con validación y barras de progreso
 - **BudgetCalculator**: cálculo automático de gasto acumulado por categoría
 
+### ✅ Presupuestos compartidos por grupo (HU-0.8, MYF-23)
+- **Modelo**: `Budget.groupId` (nullable) distingue presupuestos **personales** (`null`) de los **de grupo**; persistencia en `storageService` con tolerancia a datos previos
+- **Contexto**: `AppState.budgetGroupId` (personal o grupo activo) + `BudgetContextSelector`; presupuestos y snapshot del dashboard se filtran automáticamente al cambiar de contexto
+- **Consumo agregado**: en contexto de grupo el cálculo suma el gasto de **todos los miembros**; las transacciones llevan `userId` (propietario) y `groupId` (ledger compartido)
+- **Desglose por miembro**: `BudgetRow.memberSpend` + vista expandible "Desglose por miembro" en `BudgetDashboard` (`budgetScope.ts` resuelve miembros y nombres)
+- **Tests**: 8 nuevos en `budgetCalculator.group.test.ts` (agregación por miembro, filtrado por contexto, breakdown)
+
 ### ✅ Módulo 4: Inversiones (COMPLETADO)
 - **InvestmentsPage**: CRUD completo con validación y tipos de activo
 
 ### ✅ Módulo 5: Dashboard y Patrimonio Neto (COMPLETADO, MYF-10)
 - **DashboardPage**: resumen mensual, desglose de gastos, transacciones recientes, estado de presupuestos, patrimonio neto con conversión de divisas, historial mensual y datos de demostración
+
+## ✅ Inversiones compartidas con propiedad proporcional (MYF-24 COMPLETADO)
+
+- **Modelo de datos** (HU-0.9): `Investment.groupId?` (null = personal),
+  `createdBy?` y entidad `InvestmentOwnership` (investmentId, userId,
+  percentage) para registrar el % de propiedad por miembro del grupo.
+  Persistidos en el snapshot `v1` de forma backward-compatible.
+- **Servicio de cartera por contexto** (`features/investments/services/portfolio.ts`):
+  `ownershipPercentage` (100 % para personales), `holdingsForContext` (la vista
+  personal valora cada inversión de grupo al % del usuario; la vista de grupo
+  al total) y validación `isFullOwnership` (suma = 100).
+- **Selector de ámbito** en la página de inversiones: Personal + grupos del
+  usuario. Al crear una inversión de grupo se muestra un editor de % por
+  miembro con validación "suma 100" y mensajes de error accesibles.
+- **Patrimonio neto por contexto** (`contextNetWorth`/`contextNetWorthItems`):
+  el dashboard computa la vista personal proporcional (o la del grupo si hay
+  contexto de grupo activo compartido con presupuestos).
+- **Tests**: 11 nuevos del portfolio (filtros/sharing, validación), 5 de la
+  página (selector, creación personal y de grupo, rechazos de suma), 4 de
+  netWorth por contexto y 1 de integración (activo compartido en el panel de
+  patrimonio). Suite total: **286 tests**.
+- [ADR-0010](docs/adr/0010-group-investments.md)
 
 ## 🔄 Semana 1: Persistencia (EN CURSO)
 
@@ -158,6 +196,89 @@ El proyecto está operativo con **build limpio, 243 tests pasando, lint sin erro
 - [Index de docs](beta/README.md) + sección "Beta testers" en `README.md`.
 - **Tests**: `SettingsPage.test.tsx` cubre el enlace de feedback en ambos
   idiomas. Suite: **174 tests**.
+
+## ✅ Contexte de grupo en recurrentes (MYF-25 COMPLETADO)
+
+- **HU-0.8 recurrente falsificado**: reglas recurrentes **personales** o de **grupo**
+  (`RecurringTransaction.groupId` nullable + `createdBy`), compatibles con el modelo
+  multiusuario de ADR-0008).
+- **Materialización con contexto**: `materializeDue` propaga el `groupId` de la
+  regla a cada transacción generada (el ledger queda etiquetado por grupo).
+- **Permisos en generación**: `ruleCanGenerate`/`generationGuardFor` respeta los
+  permisos del miembro que creó la regla; una regla de grupo solo materializa
+  mientras su creador conserva `data.edit` (admin/member) en el grupo.
+- **Listado filtrable por contexto**: `RecurringContext` (all/personal/group) +
+  `recurringsInContext`; selector de contexto en `RecurringPage` y campo de
+  contexto en `RecurringForm` (solo grupos con permiso).
+- **Persistence**: `storageService` parsela `groupId`/`createdBy` (opcionales,
+  retrocompatibles con snapshots v1.
+- **Tests**: casos nuevos en `recurrenceService.test.ts`, `storageService.test.ts`
+  y `RecurringPage.test.tsx` (grupos).
+- [ADR-0009](docs/adr/0009-recurring-group-context.md)
+
+## 📋 Contexte de grupos en budgets/inversiones (HU-0.9) — EN CURSO (otro run)
+
+Ver cambios intermedios en `features/budgeting` e `features/investments`
+(grupos compartidos y ownership). A UNIR en el lanzamiento del contexto común.
+
+## ✅ Dashboard multi-contexto (MYF-26 COMPLETADO)
+
+- **Selector de contexto propio** (`DashboardContextSelector`): **Personal**,
+  **Todo** (vista consolidada) y cada grupo del miembro. Se muestra solo cuando
+  el usuario pertenece a al menos un grupo; por defecto Personal.
+- **Servicio `dashboardContext.ts`**: `DashboardContext` (personal/all/group) +
+  `transactionsInContext` con la misma regla de ámbito que el calculador de
+  presupuestos (`isInScope`) para que KPI y presupuesto cuenten lo mismo:
+  personal → solo filas propias; group → ledger del grupo + gasto de cualquier
+  miembro (nunca filas de otro grupo); all → todo el libro.
+- **Todos los widgets en contexto**: KPIs del mes, comparativa vs anterior,
+  desglose de gastos, transacciones recientes, snapshot de presupuestos,
+  patrimonio neto e histórico filtran por el contexto activo y se actualizan al
+  cambiar.
+- **Etiquetas de origen en "Todo"**: columna "Origen" en transacciones recientes
+  (Personal / nombre de grupo) y desglose de gastos por categoría con chips
+  etiquetados.
+- **Desglose por miembro en grupo**: cada categoría del desglose muestra chips
+  `miembro · importe` (agregación de todos los miembros).
+- **Patrimonio neto por contexto**: personal → parte proporcional del usuario;
+  grupo → activos del grupo al total; "Todo" → inventario completo a valor total
+  (`PortfolioContext.kind = 'all'`).
+- **Decisión**: contexto local de la vista (no persistido), igual que Recurrentes;
+  el dashboard ya no depende de `store.budgetGroupId`. Ver
+  [ADR-0011](docs/adr/0011-dashboard-context.md)
+- **Tests**: 10 nuevos/ajustados (dashboardContext, expenseBreakdown con shares,
+  holdingsForContext 'all', página multi-contexto). Suite: **+28 tests** respecto
+  al lanzamiento anterior en los ficheros del dashboard.
+
+## ✅ Transacciones con contexto de grupo (HU-0.6, MYF-22 COMPLETADO)
+
+- **Selector de contexto en el listado**: filtro **Personal / cada grupo /
+  Todas** en el encabezado de la página de transacciones, visible solo cuando
+  el usuario pertenece a al menos un grupo por defecto Personal. El listado
+  deriva de `visibleTransactions` con reglas explícitas (personal ↔ sin grupo;
+  grupo ↔ `groupId` igual; `all` ↔ todo el libro).
+- **Selector de grupo en el formulario**: al crear/editar un ingreso o gasto se
+  elige **Personal** o uno de los grupos del usuario con permiso de edición
+  (`data.edit`). **Por defecto se propone el contexto activo** del listado
+  ("por defecto se propone el contexto activo").
+- **Editar y reasignar**: cada fila gestionable ahora tiene **Editar**, cargando
+  la transacción en el formulario; al guardar se usa el nuevo
+  `AppState.updateTransaction(id, patch)` — se puede reasignar la transacción a
+  otro contexto (personal/grupo) sin perder historial.
+- **Quién lo añadió**: las filas de otro miembro muestran "Añadido por {nombre}"
+  (helper síncrono `transactionCreatorFor()`). La propiedad `userId` ya estampa
+  quién la creó.
+- **Permisos**: las filas de grupo respetan el ownership-permiso
+  (`groupAccessFor().canEditRecord`, HU-0.10): el admin edita/borra cualquier
+  fila, el miembro solo las suyas, `readonly` ninguna. Las personales son
+  siempre gestionables.
+- **Independencia del contexto**: se reutiliza el patrón del dashboard/recurrentes
+  (contexto local de la vista, no persistido, keyed por usuario). Sin grupos, la
+  página se comporta idénticamente a antes. Ver
+  [ADR-0012](docs/adr/0012-transaction-group-context.md)
+- **Tests**: 5 nuevos de página (filtro por contexto, origen de grupo, "Añadido
+  por", alta de transacción de grupo y reasignación) + fix de un warning TS
+  pre-existente (`GROUP_STORAGE_KEY` sin usar). Suite completa: **331 tests**.
 
 ## Próximos Pasos Recomendados
 

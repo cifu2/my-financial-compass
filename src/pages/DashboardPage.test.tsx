@@ -1,8 +1,12 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import { AppStateProvider, type Transaction } from '../state/AppState'
 import type { Category } from '../features/categories/types'
 import DashboardPage from './DashboardPage'
+import { buildSeededSnapshot } from '../features/auth/services/authService'
+import { AUTH_STORAGE_KEY } from '../features/auth/services/authStore'
+import { seedGroupSnapshot } from '../features/groups/data/seeds'
+import { GROUP_STORAGE_KEY } from '../features/groups/services/groupStore'
 
 const CATEGORIES: Category[] = [
   { id: 'cat-food', name: 'Alimentación', type: 'expense', isActive: true },
@@ -119,5 +123,152 @@ describe('DashboardPage (MYF-10)', () => {
     await screen.findByText(/Fondo global/)
     expect(screen.queryByRole('button', { name: /Cargar datos de demostración/ })).toBeNull()
     expect(container.textContent ?? '').toMatch(/Patrimonio neto/)
+  })
+})
+
+// ---- HU-0.5 multi-context dashboard -------------------------------------
+
+const GROUP_CATEGORIES: Category[] = [
+  { id: 'cat-food', name: 'Alimentación', type: 'expense', isActive: true },
+  { id: 'cat-home', name: 'Vivienda', type: 'expense', isActive: true },
+  { id: 'cat-salary', name: 'Nómina', type: 'income', isActive: true },
+]
+
+function groupAccountTransactions(): Transaction[] {
+  return [
+    // Ana's personal ledger (June).
+    { id: 'p1', concept: 'Pan', amount: -30, date: '2026-06-02', type: 'expense', categoryId: 'cat-food', userId: 'usr-ana' },
+    { id: 'p2', concept: 'Nómina', amount: 2500, date: '2026-06-01', type: 'income', categoryId: 'cat-salary', userId: 'usr-ana' },
+    // Shared "Hogar" ledger (June): one row by Ana, one by José.
+    { id: 'g1', concept: 'Alquiler', amount: -780, date: '2026-06-01', type: 'expense', categoryId: 'cat-home', groupId: 'grp-hogar', userId: 'usr-ana' },
+    { id: 'g2', concept: 'Luz', amount: -80, date: '2026-06-05', type: 'expense', categoryId: 'cat-home', groupId: 'grp-hogar', userId: 'usr-jose' },
+  ]
+}
+
+const GROUP_INVESTMENTS = [
+  { id: 'inv-personal', name: 'Fondo mío', ticker: 'OWN', type: 'funds' as const, purchaseDate: '2026-01-10', quantity: 1, investedAmount: 1000, currentValue: 1100, currency: 'EUR' },
+  { id: 'inv-group', name: 'Fondo común', ticker: 'GRP', type: 'funds' as const, purchaseDate: '2026-01-10', quantity: 1, investedAmount: 2000, currentValue: 2200, currency: 'EUR', groupId: 'grp-hogar', createdBy: 'usr-ana' },
+]
+
+function seedAnasGroups() {
+  const auth = buildSeededSnapshot({ id: 'usr-ana', email: 'ana@example.com', name: 'Ana', password: 'pass1234' })
+  auth.users.push({
+    id: 'usr-jose',
+    email: 'jose@example.com',
+    name: 'José',
+    avatar: '#4338ca',
+    currency: 'EUR',
+    createdAt: new Date().toISOString(),
+    password: { salt: 'salt', digest: 'digest' },
+  })
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth))
+  localStorage.setItem(GROUP_STORAGE_KEY, JSON.stringify(seedGroupSnapshot()))
+}
+
+async function selectContext(label: string) {
+  const select = (await screen.findByLabelText('Contexto')) as HTMLSelectElement
+  fireEvent.change(select, { target: { value: label } })
+}
+
+function kpiPanel(metricHeading: string): HTMLElement {
+  const heading = screen
+    .getAllByRole('heading', { name: metricHeading })
+    .find(() => true) as HTMLElement
+  return heading.closest('.panel') as HTMLElement
+}
+
+describe('DashboardPage multi-context (HU-0.5)', () => {
+  afterEach(() => localStorage.clear())
+
+  it('defaults to the personal context and hides group-ledger rows', async () => {
+    seedAnasGroups()
+    render(
+      <AppStateProvider
+        initialStore={{
+          transactions: groupAccountTransactions(),
+          categories: GROUP_CATEGORIES,
+          investments: GROUP_INVESTMENTS,
+        }}
+      >
+        <DashboardPage />
+      </AppStateProvider>,
+    )
+
+    const contextSelect = await screen.findByLabelText('Contexto')
+    expect(contextSelect).toHaveValue('personal')
+
+    // Personal KPI: only Ana's own rows (expenses = 30, income = 2500).
+    const expenses = kpiPanel('Gastos')
+    expect(within(expenses).getByText(/30,00 €/)).toBeInTheDocument()
+
+    // The shared "Alquiler" row must not appear in recent transactions.
+    expect(screen.queryByRole('cell', { name: 'Alquiler' })).toBeNull()
+    // Nor the group investment in the net worth panel.
+    expect(screen.queryByText('Fondo común')).toBeNull()
+  })
+
+  it('switching to a group aggregates all members and breaks down by member', async () => {
+    seedAnasGroups()
+    render(
+      <AppStateProvider
+        initialStore={{
+          transactions: groupAccountTransactions(),
+          categories: GROUP_CATEGORIES,
+          investments: GROUP_INVESTMENTS,
+        }}
+      >
+        <DashboardPage />
+      </AppStateProvider>,
+    )
+
+    await screen.findByLabelText('Contexto')
+    await selectContext('grp-hogar')
+
+    // Group KPI aggregates every member: Alquiler 780 + Luz 80 + Pan 30 = 890.
+    await waitFor(() => {
+      const expenses = kpiPanel('Gastos')
+      expect(within(expenses).getByText(/890,00 €/)).toBeInTheDocument()
+    })
+
+    // The group ledger transaction is shown in recent.
+    expect(screen.getByRole('cell', { name: 'Alquiler' })).toBeInTheDocument()
+
+    // Vivienda is broken down per member (Ana 780 · José 80) in the chips.
+    const joseChip = screen.getByText('José')
+    const chips = joseChip.closest('.share-chips') as HTMLElement
+    expect(within(chips).getByText('Ana')).toBeInTheDocument()
+
+    // Net worth includes the group asset at full value.
+    expect(screen.getByText('Fondo común')).toBeInTheDocument()
+  })
+
+  it('the "Todo" context consolidates personal and group with origin labels', async () => {
+    seedAnasGroups()
+    render(
+      <AppStateProvider
+        initialStore={{
+          transactions: groupAccountTransactions(),
+          categories: GROUP_CATEGORIES,
+          investments: GROUP_INVESTMENTS,
+        }}
+      >
+        <DashboardPage />
+      </AppStateProvider>,
+    )
+
+    await screen.findByLabelText('Contexto')
+    await selectContext('all')
+
+    // Consolidated expenses: 30 + 780 + 80 = 890.
+    await waitFor(() => {
+      const expenses = kpiPanel('Gastos')
+      expect(within(expenses).getByText(/890,00 €/)).toBeInTheDocument()
+    })
+
+    // The recent table tags each row with an origin column.
+    const originColumn = await screen.findByRole('columnheader', { name: 'Origen' })
+    expect(originColumn).toBeInTheDocument()
+    expect(within(originColumn.closest('table') as HTMLElement).getAllByText('Personal').length).toBeGreaterThan(0)
+    expect(within(originColumn.closest('table') as HTMLElement).getAllByText('Hogar').length).toBeGreaterThan(0)
   })
 })

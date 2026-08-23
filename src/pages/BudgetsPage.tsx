@@ -7,13 +7,22 @@ import { UndoToast } from '../components/UndoToast'
 import { useUndo } from '../hooks/useUndo'
 import { useAppState } from '../state/AppState'
 import { BudgetDashboard } from '../features/budgeting/components/BudgetDashboard'
+import { BudgetContextSelector } from '../features/budgeting/components/BudgetContextSelector'
 import {
   buildBudgetRows,
   spentForCategory,
   summarize,
   type SpendingInput,
 } from '../features/budgeting/services/budgetCalculator'
+import {
+  groupBudgetOptions,
+  groupMembers,
+} from '../features/budgeting/services/budgetScope'
 import type { Budget, BudgetPeriod } from '../features/budgeting/types'
+import { readSessionUser } from '../features/auth/services/authService'
+import { groupAccessFor } from '../features/groups/access'
+import { loadGroupSnapshot } from '../features/groups/services/groupStore'
+import { PermissionNotice } from '../features/groups/components/PermissionNotice'
 import {
   required,
   mustBeNumber,
@@ -57,6 +66,23 @@ export default function BudgetsPage() {
     useAppState()
   const t = (key: UIKey) => translate(locale, key)
 
+  // HU-0.8: the active context (personal vs group) scopes what is shown and
+  // what new budgets belong to.
+  const groupId = store.budgetGroupId ?? null
+  const contextGroupId = groupId
+  const isGroupContext = contextGroupId !== null
+  const currentUserId = readSessionUser()?.id ?? null
+
+  // HU-0.10: in a group context, the member may only manage the group's
+  // budgets when the role/settings grant the capability. Read-only members or
+  // members of a group that revokes the permission see a clear notice instead
+  // of the form and management actions.
+  const groupAccess = contextGroupId
+    ? groupAccessFor(contextGroupId, currentUserId ?? undefined)
+    : null
+  const canManageGroupBudgets = groupAccess?.canManageBudgets ?? true
+  const budgetRole = groupAccess?.role ?? null
+
   const month = currentMonthKey()
   const prevMonth = previousMonthKey()
 
@@ -73,17 +99,48 @@ export default function BudgetsPage() {
     return (id: string) => map.get(id) ?? null
   }, [store.categories])
 
+  const options = useMemo(
+    () =>
+      isGroupContext && contextGroupId !== null
+        ? groupBudgetOptions(contextGroupId, currentUserId)
+        : { currentUserId, memberIds: undefined, memberNames: undefined },
+    [isGroupContext, groupId, currentUserId], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  const context = useMemo(
+    () =>
+      ({
+        kind: isGroupContext ? 'group' : 'personal',
+        groupId: contextGroupId,
+      }) as const,
+    [isGroupContext, contextGroupId],
+  )
+
   const expenseInputs: SpendingInput[] = useMemo(
     () =>
       store.transactions
-        .filter((t) => t.type === 'expense')
-        .map((t) => ({ amount: t.amount, date: t.date, categoryId: t.categoryId })),
+        .filter((tr) => tr.type === 'expense')
+        .map((tr) => ({
+          amount: tr.amount,
+          date: tr.date,
+          categoryId: tr.categoryId,
+          userId: tr.userId,
+          groupId: tr.groupId,
+        })),
     [store.transactions],
   )
 
   const rows = useMemo(
-    () => buildBudgetRows(store.budgets, expenseInputs, () => true, month, categoryNameFor),
-    [store.budgets, expenseInputs, month, categoryNameFor],
+    () =>
+      buildBudgetRows(
+        store.budgets,
+        expenseInputs,
+        () => true,
+        month,
+        categoryNameFor,
+        { context, currentUserId: options.currentUserId, memberIds: options.memberIds, memberNames: options.memberNames },
+      ),
+    [store.budgets, expenseInputs, month, categoryNameFor, context, options],
   )
 
   const summary = useMemo(() => summarize(rows), [rows])
@@ -91,11 +148,17 @@ export default function BudgetsPage() {
   const previousSpentByBudgetId = useMemo(() => {
     const map = new Map<string, number>()
     for (const budget of store.budgets) {
-      const spent = spentForCategory(expenseInputs, budget.categoryId, prevMonth, () => true)
+      const spent = spentForCategory(
+        expenseInputs,
+        budget.categoryId,
+        prevMonth,
+        () => true,
+        { context, currentUserId: options.currentUserId, memberIds: options.memberIds },
+      )
       if (spent > 0) map.set(budget.id, spent)
     }
     return map
-  }, [store.budgets, expenseInputs, prevMonth])
+  }, [store.budgets, expenseInputs, prevMonth, context, options])
 
   // ---- budget form (create + edit)
   const [form, setForm] = useState<BudgetForm>(EMPTY_FORM)
@@ -118,7 +181,10 @@ export default function BudgetsPage() {
 
   function duplicateCategorySelected(): boolean {
     return store.budgets.some(
-      (b) => b.categoryId === form.categoryId && b.id !== editingId,
+      (b) =>
+        b.categoryId === form.categoryId &&
+        b.id !== editingId &&
+        (b.groupId ?? null) === contextGroupId,
     )
   }
 
@@ -155,6 +221,7 @@ export default function BudgetsPage() {
       categoryId: form.categoryId,
       limit: Number(form.limit.replace(',', '.')),
       period: form.period as BudgetPeriod,
+      groupId: contextGroupId,
     }
     if (editingId) {
       updateBudget(editingId, payload)
@@ -175,12 +242,28 @@ export default function BudgetsPage() {
     cancelLabel: t('confirm.cancel'),
   }
 
+  const memberLabel = isGroupContext
+    ? groupMembers(contextGroupId!)
+      .map((m) => m.name)
+      .join(', ')
+    : null
+
   return (
     <Page title={t('section.budgets')}>
       <div className="stack">
         <div className="panel">
           <h2>{editingId ? t('form.edit') : t('common.budget')}</h2>
-          <form onSubmit={saveBudget} noValidate>
+          <BudgetContextSelector />
+          {isGroupContext && !canManageGroupBudgets && (
+            <PermissionNotice
+              locale={locale}
+              role={budgetRole}
+              groupName={contextGroupId ? groupNameFor(contextGroupId) : undefined}
+              baseKey="permission.manageBudgets"
+            />
+          )}
+          {(!isGroupContext || canManageGroupBudgets) && (
+            <form onSubmit={saveBudget} noValidate>
             <div className="form-row">
               <SelectField
                 label={t('fld.category')}
@@ -235,16 +318,29 @@ export default function BudgetsPage() {
               </button>
             </div>
           </form>
+          )}
         </div>
 
         <div className="stack">
-          <h2>{t('section.budgets')}</h2>
+          <div className="budget-list-header">
+            <h2>{isGroupContext ? t('budget.groupBudgets') : t('section.budgets')}</h2>
+            {isGroupContext && memberLabel && (
+              <span className="budget-member-note">
+                {t('budget.byMember')}: {memberLabel}
+              </span>
+            )}
+          </div>
           <BudgetDashboard
             rows={rows}
             summary={summary}
             previousSpentByBudgetId={previousSpentByBudgetId}
-            onEdit={startEdit}
-            onDelete={(b) => setConfirming(b)}
+            isGroup={isGroupContext}
+            breakdownLabel={t('budget.byMember')}
+            emptyText={isGroupContext ? t('budget.noGroupBudgets') : undefined}
+            onEdit={canManageGroupBudgets ? startEdit : undefined}
+            onDelete={
+              canManageGroupBudgets ? (b) => setConfirming(b) : undefined
+            }
           />
         </div>
       </div>
@@ -288,4 +384,9 @@ export default function BudgetsPage() {
       ))}
     </Page>
   )
+}
+
+/** Group display name for the permission notice, or null when unknown. */
+function groupNameFor(groupId: string): string | null {
+  return loadGroupSnapshot().groups.find((g) => g.id === groupId)?.name ?? null
 }

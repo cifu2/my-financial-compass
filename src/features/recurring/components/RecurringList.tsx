@@ -33,6 +33,7 @@ export function RecurringList({
   onEdit,
   onToggleActive,
   onDelete,
+  canManage,
 }: {
   recurrings: readonly RecurringTransaction[]
   strings: RecurringListStrings
@@ -41,6 +42,11 @@ export function RecurringList({
   onEdit: (r: RecurringTransaction) => void
   onToggleActive: (r: RecurringTransaction) => void
   onDelete: (r: RecurringTransaction) => void
+  /**
+   * Optional per-row permission check (HU-0.10). When it returns false the
+   * management actions are hidden; the row stays visible in read-only mode.
+   */
+  canManage?: (r: RecurringTransaction) => boolean
 }) {
   if (recurrings.length === 0) {
     return <p className="text-muted">{strings.none}</p>
@@ -97,27 +103,31 @@ export function RecurringList({
               </td>
               <td>
                 <div className="recurring-actions">
-                  <button
-                    type="button"
-                    className="btn btn--secondary"
-                    onClick={() => onEdit(r)}
-                  >
-                    {strings.edit}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--secondary"
-                    onClick={() => onToggleActive(r)}
-                  >
-                    {r.isActive ? strings.pause : strings.resume}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--danger"
-                    onClick={() => onDelete(r)}
-                  >
-                    {strings.delete}
-                  </button>
+                  {(!canManage || canManage(r)) && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn--secondary"
+                        onClick={() => onEdit(r)}
+                      >
+                        {strings.edit}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--secondary"
+                        onClick={() => onToggleActive(r)}
+                      >
+                        {r.isActive ? strings.pause : strings.resume}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--danger"
+                        onClick={() => onDelete(r)}
+                      >
+                        {strings.delete}
+                      </button>
+                    </>
+                  )}
                 </div>
               </td>
             </tr>

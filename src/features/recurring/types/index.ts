@@ -71,10 +71,19 @@ export interface RecurringTransaction {
   nextExecution: string
   /** Original scheduled date -> one-off override. */
   exceptions?: Record<string, OccurrenceOverride>
+  /**
+   * Group context of the rule (HU-0.8). `undefined`/absent means the rule is
+   * personal; set to a group id makes it a shared (group) recurring rule whose
+   * generated transactions are stamped with the same context.
+   */
+  groupId?: string
+  /** User id of the member who created the rule, used by generation to honor
+   * their group permissions. Personal rules never need it. */
+  createdBy?: string
 }
 
 /** Editable fields of a recurrence (for the config form). */
 export type RecurringInput = Pick<
   RecurringTransaction,
-  'template' | 'frequency' | 'startDate' | 'endDate' | 'executionDay'
+  'template' | 'frequency' | 'startDate' | 'endDate' | 'executionDay' | 'groupId'
 >

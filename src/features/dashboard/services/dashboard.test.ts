@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Transaction } from '../../transactions/types'
 import type { Category } from '../../categories/types'
-import type { Investment } from '../../investments/types'
+import type { Investment, InvestmentOwnership } from '../../investments/types'
 import { RATES_BASE_EUR } from './currency'
 import {
   currentMonthKey,
@@ -12,6 +12,9 @@ import {
   netWorth,
   netWorthHistory,
   netWorthItems,
+  contextNetWorth,
+  contextNetWorthItems,
+  expenseBreakdown,
   percentageChange,
   previousMonthKey,
   recentTransactions,
@@ -91,6 +94,44 @@ describe('dashboard service', () => {
     )
     expect(top).toHaveLength(1)
     expect(top[0].categoryName).toBe('c-other')
+  })
+
+  describe('expenseBreakdown with labelled sub-totals (HU-0.5)', () => {
+    const rows = [
+      tx('a', 'A', -50, '2026-06-01', 'c-food', 'expense'),
+      tx('b', 'B', -30, '2026-06-02', 'c-food', 'expense'),
+      tx('c', 'C', -20, '2026-06-03', 'c-fun', 'expense'),
+    ]
+
+    it('is identical to the plain top list when no split is given', () => {
+      const plain = expenseBreakdown(rows, '2026-06', CATS)
+      const top = topExpenseCategories(rows, '2026-06', CATS)
+      expect(plain).toEqual(top)
+      expect(plain[0].shares).toBeUndefined()
+    })
+
+    it('splits each category by member and keeps labels per row', () => {
+      const split = (t: Transaction) => (
+        t.userId === undefined
+          ? { key: t.concept, label: t.concept }
+          : { key: t.userId, label: `Member ${t.userId}` }
+      )
+      const withShares = expenseBreakdown(rows, '2026-06', CATS, 5, split)
+      const food = withShares.find((row) => row.categoryId === 'c-food')
+      expect(food?.amount).toBe(80)
+      // Shares sorted descending: A (50) then B (30).
+      expect(food?.shares).toEqual([
+        { key: 'A', label: 'A', amount: 50 },
+        { key: 'B', label: 'B', amount: 30 },
+      ])
+      const fun = withShares.find((row) => row.categoryId === 'c-fun')
+      expect(fun?.shares).toEqual([{ key: 'C', label: 'C', amount: 20 }])
+    })
+
+    it('ignores null splits (untagged rows) without creating empty shares', () => {
+      const withNull = expenseBreakdown(rows, '2026-06', CATS, 5, () => null)
+      expect(withNull.every((row) => row.shares === undefined)).toBe(true)
+    })
   })
 
   it('computes month comparison numbers', () => {
@@ -203,5 +244,95 @@ describe('dashboard service', () => {
     // May cumulative: 2000 - 120 - 80 = 1800
     expect(history[0].liquidAssets).toBe(1800)
     expect(history[1].liquidAssets).toBe(3770)
+  })
+
+  describe('context-aware net worth (HU-0.9)', () => {
+    const groupInv: Investment = {
+      id: 'gi-1',
+      name: 'Grupo fondo',
+      type: 'funds',
+      purchaseDate: '2026-01-01',
+      quantity: 1,
+      investedAmount: 1000,
+      currentValue: 2000,
+      currency: 'EUR',
+      groupId: 'grp-hogar',
+      createdBy: 'usr-ana',
+    }
+    const personalInv: Investment = {
+      id: 'pi-1',
+      name: 'Personal',
+      type: 'funds',
+      purchaseDate: '2026-01-01',
+      quantity: 1,
+      investedAmount: 500,
+      currentValue: 500,
+      currency: 'EUR',
+      createdBy: 'usr-ana',
+    }
+    const ownerships: InvestmentOwnership[] = [
+      { investmentId: 'gi-1', userId: 'usr-ana', percentage: 60 },
+      { investmentId: 'gi-1', userId: 'usr-jose', percentage: 40 },
+    ]
+
+    it('personal context values group assets at the user share', () => {
+      const worth = contextNetWorth(
+        SAMPLE,
+        [groupInv, personalInv],
+        ownerships,
+        { kind: 'personal', userId: 'usr-ana' },
+        'EUR',
+        RATES_BASE_EUR,
+      )
+      // Liquid 3770 + personal 500 + group share 2000*0.6 = 1200 → 5470.
+      expect(worth.liquidAssets).toBe(3770)
+      expect(worth.investments).toBe(1700)
+      expect(worth.total).toBe(5470)
+    })
+
+    it('group context values the whole asset', () => {
+      const worth = contextNetWorth(
+        SAMPLE,
+        [groupInv, personalInv],
+        ownerships,
+        { kind: 'group', groupId: 'grp-hogar' },
+        'EUR',
+        RATES_BASE_EUR,
+      )
+      expect(worth.investments).toBe(2000)
+      expect(worth.total).toBe(5770)
+    })
+
+    it('excludes unconvertible holdings from the total and counts them', () => {
+      const exotic: Investment = {
+        ...groupInv,
+        id: 'fx-1',
+        currency: 'XXX',
+        currentValue: 900,
+      }
+      const worth = contextNetWorth(
+        [],
+        [groupInv, exotic],
+        [...ownerships, { investmentId: 'fx-1', userId: 'usr-ana', percentage: 100 }],
+        { kind: 'group', groupId: 'grp-hogar' },
+        'EUR',
+        RATES_BASE_EUR,
+      )
+      expect(worth.investments).toBe(2000)
+      expect(worth.unconvertedCount).toBe(1)
+    })
+
+    it('exposes proportional native values in the breakdown', () => {
+      const items = contextNetWorthItems(
+        [groupInv],
+        ownerships,
+        { kind: 'personal', userId: 'usr-ana' },
+        'EUR',
+        RATES_BASE_EUR,
+      )
+      expect(items).toHaveLength(1)
+      expect(items[0].nativeValue).toBe(1200)
+      expect(items[0].primaryValue).toBe(1200)
+    })
   })
 })

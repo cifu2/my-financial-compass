@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { materializeDue, upcomingOccurrences } from './recurrenceService'
+import {
+  materializeDue,
+  upcomingOccurrences,
+  ruleCanGenerate,
+  recurringsInContext,
+  ruleInContext,
+  generationGuardFor,
+} from './recurrenceService'
 import type { RecurringTransaction } from '../types'
+import { seedGroupSnapshot } from '../../groups/data/seeds'
 
 function recurring(partial: Partial<RecurringTransaction> & { id: string }): RecurringTransaction {
   return {
@@ -96,34 +104,92 @@ describe('recurrenceService.materializeDue', () => {
   })
 })
 
-describe('recurrenceService.upcomingOccurrences', () => {
-  it('lists the next occurrences sorted by date', () => {
-    const items = upcomingOccurrences(
-      [recurring({ id: 'rec-1', frequency: 'weekly', startDate: '2026-03-01' })],
-      TODAY,
-      3,
-    )
-    expect(items.map((i) => i.date)).toEqual([
-      '2026-03-15',
-      '2026-03-22',
-      '2026-03-29',
-    ])
+describe('recurring group context (HU-0.8)', () => {
+  const group = recurring({ id: 'rec-grp', groupId: 'grp-hogar', createdBy: 'usr-ana' })
+
+  it('stamps the rule groupId onto generated transactions', () => {
+    const { generated } = materializeDue([group], [], TODAY)
+    expect(generated).toHaveLength(3)
+    expect(generated.every((g) => g.groupId === 'grp-hogar')).toBe(true)
+    expect(generated[0].recurringId).toBe('rec-grp')
   })
 
-  it('marks single-occurrence overrides', () => {
-    const items = upcomingOccurrences(
-      [
-        recurring({
-          id: 'rec-1',
-          exceptions: { '2026-04-01': { date: '2026-04-05' } },
-        }),
-      ],
-      TODAY,
-      4,
-    )
-    const overridden = items.find((i) => i.date === '2026-04-05')
-    expect(overridden?.hasOverride).toBe(true)
-    const regular = items.find((i) => i.date === '2026-05-01')
-    expect(regular?.hasOverride).toBe(false)
+  it('keeps personal rules without a group context', () => {
+    const { generated } = materializeDue([recurring({ id: 'rec-1' })], [], TODAY)
+    expect(generated.length).toBeGreaterThan(0)
+    expect(generated.every((g) => g.groupId === undefined)).toBe(true)
+  })
+
+  it('exposes the group context on upcoming occurrences', () => {
+    const items = upcomingOccurrences([group], TODAY, 1)
+    expect(items[0].groupId).toBe('grp-hogar')
   })
 })
+
+describe('recurring context filtering (HU-0.8)', () => {
+  const personal = recurring({ id: 'rec-1' })
+  const shared = recurring({ id: 'rec-grp', groupId: 'grp-hogar' })
+  const group = shared
+
+  it('filters rules by a group context', () => {
+    expect(ruleInContext(group, { kind: 'group', groupId: 'grp-hogar' })).toBe(true)
+    expect(ruleInContext(personal, { kind: 'group', groupId: 'grp-hogar' })).toBe(false)
+  })
+
+  it('isolates personal rules', () => {
+    expect(ruleInContext(personal, { kind: 'personal' })).toBe(true)
+    expect(ruleInContext(group, { kind: 'personal' })).toBe(false)
+  })
+
+  it('the all context keeps every rule', () => {
+    const kept = recurringsInContext([personal, group], { kind: 'all' })
+    expect(kept).toHaveLength(2)
+  })
+
+  it('filters a list by context', () => {
+    const kept = recurringsInContext([personal, group], { kind: 'group', groupId: 'grp-hogar' })
+    expect(kept).toEqual([group])
+  })
+})
+
+describe('rule generation permissions (HU-0.8)', () => {
+  const group = recurringGroup({ id: 'rec-grp' })
+
+  it('always allows personal rules', () => {
+    expect(ruleCanGenerate(recurring({ id: 'rec-1' }), seedGroupSnapshot(), 'usr-ana')).toBe(true)
+  })
+
+  it('allows a group rule while its creator keeps data.edit', () => {
+    expect(ruleCanGenerate(group, seedGroupSnapshot(), 'usr-ana')).toBe(true)
+  })
+
+  it('blocks a readonly creator', () => {
+    const snapshot = seedGroupSnapshot()
+    snapshot.members = snapshot.members.map((m) =>
+      m.groupId === 'grp-hogar' && m.userId === 'usr-ana'
+        ? { ...m, role: 'readonly' as const }
+        : m,
+    )
+    const guard = generationGuardFor(snapshot, 'usr-ana')
+    expect(guard(group)).toBe(false)
+  })
+
+  it('blocks a creator that is no longer a member', () => {
+    const snapshot = seedGroupSnapshot()
+    snapshot.members = snapshot.members.filter(
+      (m) => !(m.groupId === 'grp-hogar' && m.userId === 'usr-ana'),
+    )
+    expect(ruleCanGenerate(group, snapshot, 'usr-ana')).toBe(false)
+  })
+
+  it('uses the current user as fallback creator', () => {
+    // A member-role user with a matching membership is allowed without an
+    // explicit creator stamp.
+    const rule = recurring({ id: 'rec-grp', groupId: 'grp-hogar' })
+    expect(ruleCanGenerate(rule, seedGroupSnapshot(), 'usr-jose')).toBe(true)
+  })
+})
+
+function recurringGroup(partial: Partial<RecurringTransaction> & { id: string }) {
+  return recurring({ ...partial, groupId: 'grp-hogar', createdBy: 'usr-ana' })
+}

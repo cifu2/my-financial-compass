@@ -30,6 +30,14 @@ export interface RecurringFormData {
   startDate: string
   endDate?: string
   executionDay?: number
+  /** Group context of the rule; undefined means a personal rule (HU-0.8). */
+  groupId?: string
+}
+
+/** A group the signed-in member may attach a rule to (HU-0.8). */
+export interface RecurringGroupOption {
+  id: string
+  name: string
 }
 
 interface FormState {
@@ -41,6 +49,7 @@ interface FormState {
   startDate: string
   endDate: string
   executionDay: string
+  groupId: string
 }
 
 const CONCEPT: Validator[] = [required(), maxLength(80)]
@@ -73,6 +82,8 @@ function VALIDATORS_FOR(
       return END_DATE
     case 'executionDay':
       return monthBased ? EXECUTION_DAY : null
+    case 'groupId':
+      return null
   }
 }
 
@@ -106,6 +117,7 @@ export function RecurringForm({
   cancelLabel,
   onSave,
   onCancel,
+  groups,
 }: {
   locale: Locale
   categories: readonly Category[]
@@ -114,6 +126,8 @@ export function RecurringForm({
   cancelLabel: string
   onSave: (data: RecurringFormData) => void
   onCancel?: () => void
+  /** Groups the member can attach the rule to; absent => personal only. */
+  groups?: readonly RecurringGroupOption[]
 }) {
   const t = (key: UIKey) => translate(locale, key)
 
@@ -128,6 +142,7 @@ export function RecurringForm({
           startDate: formatDate(initial.startDate, locale),
           endDate: initial.endDate ? formatDate(initial.endDate, locale) : '',
           executionDay: executionDayValue(initial.executionDay),
+          groupId: initial.groupId ?? '',
         }
       : {
           concept: '',
@@ -138,6 +153,7 @@ export function RecurringForm({
           startDate: formatDate(new Date(), locale),
           endDate: '',
           executionDay: '',
+          groupId: '',
         },
   )
   const [touched, setTouched] = useState<Partial<Record<keyof FormState, boolean>>>({})
@@ -179,6 +195,24 @@ export function RecurringForm({
     () => categoriesForType(categories, form.type as 'income' | 'expense' | ''),
     [categories, form.type],
   )
+
+  const contextOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [
+      { value: '', label: t('recurring.contextPersonal') },
+    ]
+    for (const group of groups ?? []) {
+      opts.push({ value: group.id, label: group.name })
+    }
+    // Keep an edition's current group selectable even if membership lapsed,
+    // so saving the form doesn't silently strip the group context.
+    const current = form.groupId
+    if (current !== '' && !opts.some((o) => o.value === current)) {
+      opts.push({ value: current, label: t('recurring.contextUnavailable') })
+    }
+    return opts
+  }, [groups, form.groupId, t])
+
+  const showContext = (groups?.length ?? 0) > 0 || form.groupId !== ''
 
   let preview = ''
   if (startIso && form.amount !== '') {
@@ -253,11 +287,24 @@ export function RecurringForm({
       executionDay: monthBased
         ? parseExecutionDay(form.executionDay)
         : undefined,
+      groupId: form.groupId !== '' ? form.groupId : undefined,
     })
   }
 
   return (
     <form onSubmit={submit} noValidate>
+      {showContext && (
+        <div className="form-row">
+          <SelectField
+            label={t('recurring.contextLabel')}
+            name="groupId"
+            value={form.groupId}
+            error={undefined}
+            onChange={(e) => setField('groupId', e.target.value)}
+            options={contextOptions}
+          />
+        </div>
+      )}
       <div className="form-row">
         <TextField
           label={t('fld.description')}

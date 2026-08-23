@@ -1,6 +1,8 @@
 import type { Transaction } from '../../transactions/types'
 import type { Category } from '../../categories/types'
-import type { Investment } from '../../investments/types'
+import type { Investment, InvestmentOwnership } from '../../investments/types'
+import { holdingsForContext, shareValue } from '../../investments/services/portfolio'
+import type { PortfolioContext } from '../../investments/services/portfolio'
 import { monthKey } from '../../budgeting/services/budgetCalculator'
 import {
   convert,
@@ -81,30 +83,77 @@ export function topExpenseCategories(
   categories: readonly Category[],
   limit = 5,
 ): CategoryExpense[] {
+  return expenseBreakdown(transactions, month, categories, limit)
+}
+
+/**
+ * A per-row split descriptor: which labelled sub-total a transaction counts
+ * toward (its owning member, or the personal/group origin in "Todo").
+ */
+export interface ExpenseSplit {
+  key: string
+  label: string
+}
+
+/**
+ * Expense breakdown by category for a month. When `split` is provided, each
+ * row additionally reports the labelled sub-totals (HU-0.5): per member in a
+ * group context (aggregating every member's spending) or per origin in the
+ * consolidated "Todo" view (personal vs each group).
+ */
+export function expenseBreakdown(
+  transactions: readonly Transaction[],
+  month: string,
+  categories: readonly Category[],
+  limit = 5,
+  split?: (t: Transaction) => ExpenseSplit | null,
+): CategoryExpense[] {
   const nameFor = new Map<string, string>(
     categories.map((c) => [c.id, c.name]),
   )
   const byCategory = new Map<string, number>()
+  const byCategorySplit = new Map<string, Map<string, ExpenseSplit & { amount: number }>>()
+
   for (const t of transactions) {
     if (t.type !== 'expense') continue
     if (monthKey(t.date) !== month) continue
-    byCategory.set(t.categoryId, (byCategory.get(t.categoryId) ?? 0) + Math.abs(t.amount))
+    const amount = Math.abs(t.amount)
+    byCategory.set(t.categoryId, (byCategory.get(t.categoryId) ?? 0) + amount)
+
+    const share = split?.(t)
+    if (share !== undefined && share !== null) {
+      const shares = byCategorySplit.get(t.categoryId) ?? new Map()
+      const existing = shares.get(share.key)
+      if (existing) existing.amount += amount
+      else shares.set(share.key, { ...share, amount })
+      byCategorySplit.set(t.categoryId, shares)
+    }
   }
+
   const total = round2([...byCategory.values()].reduce((a, b) => a + b, 0))
   const sorted = [...byCategory.entries()]
     .map(([categoryId, amount]) => ({
       categoryId,
       amount: round2(amount),
+      shares: byCategorySplit.get(categoryId),
     }))
     .sort((a, b) => b.amount - a.amount)
     .slice(0, limit)
 
-  return sorted.map((entry) => ({
-    categoryId: entry.categoryId,
-    categoryName: nameFor.get(entry.categoryId) ?? entry.categoryId,
-    amount: entry.amount,
-    percentage: total > 0 ? round2((entry.amount / total) * 100) : 0,
-  }))
+  return sorted.map((entry) => {
+    const row: CategoryExpense = {
+      categoryId: entry.categoryId,
+      categoryName: nameFor.get(entry.categoryId) ?? entry.categoryId,
+      amount: entry.amount,
+      percentage: total > 0 ? round2((entry.amount / total) * 100) : 0,
+    }
+    if (entry.shares && entry.shares.size > 0) {
+      row.shares = [...entry.shares.values()]
+        .map((s) => ({ key: s.key, label: s.label, amount: round2(s.amount) }))
+        .sort((a, b) => b.amount - a.amount)
+    }
+    return row
+  })
 }
 
 /** Full summary for a month: totals + top expense categories. */
@@ -225,6 +274,73 @@ export interface NetWorthHistoryPoint {
   liquidAssets: number
   investments: number
   total: number
+}
+
+/**
+ * Context-aware net worth (HU-0.9). Investments are filtered by the active
+ * context: personal contexts value each holding at the user's ownership
+ * share; group contexts value the whole group asset in the group currency.
+ */
+export function contextNetWorth(
+  transactions: readonly Transaction[],
+  investments: readonly Investment[],
+  ownerships: readonly InvestmentOwnership[],
+  context: PortfolioContext,
+  target: string = PRIMARY_CURRENCY,
+  rates: PartialRates = RATES_BASE_EUR,
+): NetWorth {
+  const holdings = holdingsForContext(investments, ownerships, context)
+  const investmentsAgg = contextInvestmentValue(holdings, rates, target)
+  const currency: CurrencyCode = isCurrencyCode(target) ? target : PRIMARY_CURRENCY
+  const liquid = liquidAssets(transactions)
+  return {
+    currency,
+    liquidAssets: liquid,
+    investments: round2(investmentsAgg.total),
+    unconvertedCount: investmentsAgg.unconvertedCount,
+    total: round2(liquid + investmentsAgg.total),
+  }
+}
+
+/** Per-holding breakdown respecting ownership shares in the active context. */
+export function contextNetWorthItems(
+  investments: readonly Investment[],
+  ownerships: readonly InvestmentOwnership[],
+  context: PortfolioContext,
+  currency: string = PRIMARY_CURRENCY,
+  rates: PartialRates = RATES_BASE_EUR,
+): NetWorthItem[] {
+  return holdingsForContext(investments, ownerships, context).map((holding) => {
+    const value = shareValue(holding)
+    const primaryValue = convert(value, holding.investment.currency, currency, rates)
+    return {
+      id: holding.investment.id,
+      name: holding.investment.name,
+      ticker: holding.investment.ticker,
+      type: holding.investment.type,
+      nativeValue: round2(value),
+      nativeCurrency: holding.investment.currency,
+      primaryValue: primaryValue === null ? null : round2(primaryValue),
+    }
+  })
+}
+
+function contextInvestmentValue(
+  holdings: ReturnType<typeof holdingsForContext>,
+  rates: PartialRates,
+  currency: string,
+): { total: number; unconvertedCount: number } {
+  let total = 0
+  let unconvertedCount = 0
+  for (const holding of holdings) {
+    const value = convert(shareValue(holding), holding.investment.currency, currency, rates)
+    if (value === null) {
+      unconvertedCount += 1
+      continue
+    }
+    total += value
+  }
+  return { total, unconvertedCount }
 }
 
 /**

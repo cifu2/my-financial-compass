@@ -7,6 +7,7 @@ import type {
 } from '../types'
 import { isValidGroupRole, isValidInvitationStatus } from '../types'
 import type { CurrencyCode } from '../../dashboard/services/currency'
+import type { GroupSettings } from '../permissions'
 
 /**
  * Persistence for the groups/multiuser store (see ADR-0008).
@@ -67,6 +68,7 @@ function groupFrom(value: unknown): Group | null {
     currency,
     createdBy,
     createdAt,
+    settings,
   } = value
   if (
     !isString(id) ||
@@ -89,7 +91,24 @@ function groupFrom(value: unknown): Group | null {
     currency: currency as CurrencyCode,
     createdBy,
     createdAt,
+    ...(settingsFrom(settings) ? { settings: settingsFrom(settings) } : {}),
   }
+}
+
+/**
+ * Strict-when-present parse of the per-group settings bag. Invalid rows drop
+ * each field; a non-object value is ignored entirely (defaults apply).
+ */
+function settingsFrom(value: unknown): GroupSettings | undefined {
+  if (!isRecord(value)) return undefined
+  const settings: GroupSettings = {}
+  if (typeof value.membersCanManageBudgets === 'boolean') {
+    settings.membersCanManageBudgets = value.membersCanManageBudgets
+  }
+  if (typeof value.membersCanManageInvestments === 'boolean') {
+    settings.membersCanManageInvestments = value.membersCanManageInvestments
+  }
+  return Object.keys(settings).length > 0 ? settings : undefined
 }
 
 function memberFrom(value: unknown): GroupMember | null {

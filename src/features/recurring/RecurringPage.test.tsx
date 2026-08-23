@@ -3,6 +3,10 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { AppStateProvider, type Category } from '../../state/AppState'
 import RecurringPage from '../../pages/RecurringPage'
 import { formatDate } from '../../lib/dates'
+import { buildSeededSnapshot } from '../auth/services/authService'
+import { AUTH_STORAGE_KEY } from '../auth/services/authStore'
+import { seedGroupSnapshot } from '../groups/data/seeds'
+import { GROUP_STORAGE_KEY } from '../groups/services/groupStore'
 
 const categories: Category[] = [
   { id: 'cat-book', name: 'Suscripción', type: 'expense', isActive: true },
@@ -15,6 +19,18 @@ function renderPage() {
       <RecurringPage />
     </AppStateProvider>,
   )
+}
+
+/** Seeds an authenticated member (Ana) plus the group snapshot (seeds). */
+function seedGroupMember() {
+  const auth = buildSeededSnapshot({
+    id: 'usr-ana',
+    email: 'ana@example.com',
+    name: 'Ana',
+    password: 'pass1234',
+  })
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth))
+  localStorage.setItem(GROUP_STORAGE_KEY, JSON.stringify(seedGroupSnapshot()))
 }
 
 function configForm(): HTMLElement {
@@ -151,5 +167,35 @@ describe('RecurringPage (MYF-9 recurring transactions)', () => {
       (within(configForm()).getByLabelText(/Descripción/) as HTMLInputElement)
         .value,
     ).toBe('Stock')
+  })
+})
+
+describe('RecurringPage group context (HU-0.8)', () => {
+  afterEach(() => localStorage.clear())
+
+  it('creates a group-shared rule and filters the list by context', async () => {
+    seedGroupMember()
+    renderPage()
+
+    // Ana is admin of "Hogar", so the context selector appears in the form.
+    const contextSelect = await screen.findByLabelText('Contexto')
+    fireEvent.change(contextSelect, { target: { value: 'grp-hogar' } })
+
+    fillValidConfig(configForm(), 'WhatsApp compartido', '4,99')
+    fireEvent.click(within(configForm()).getByRole('button', { name: /Guardar/ }))
+
+    // The shared rule is listed (all context keeps everything visible).
+    expect(screen.getByRole('cell', { name: /WhatsApp compartido/ })).toBeInTheDocument()
+
+    // Switching the list filter to "Personal" hides the group-shared rule.
+    const filter = screen.getByRole('combobox', { name: /Filtrar por contexto/ })
+    fireEvent.change(filter, { target: { value: 'personal' } })
+    expect(
+      screen.queryByRole('cell', { name: /WhatsApp compartido/ }),
+    ).not.toBeInTheDocument()
+
+    // Filtering by the group brings it back.
+    fireEvent.change(filter, { target: { value: 'grp-hogar' } })
+    expect(screen.getByRole('cell', { name: /WhatsApp compartido/ })).toBeInTheDocument()
   })
 })
