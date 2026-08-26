@@ -1,5 +1,12 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Verificación continua (2026-08-26)
+
+- **`main` en verde**: `npm run build` (typecheck + vite build) y `npm run lint` sin errores; suite completa **372/372 tests** pasando.
+- **`main` sincronizada con `origin/main`** (0/0 ahead/behind).
+- **CI por push (MYF-30) sigue bloqueado por token**: el `GH_TOKEN` activo sigue con scopes `repo, user` (sin `workflow`); verificado de nuevo hoy contra la API de GitHub. El workflow de referencia está listo en `deploy/workflows/deploy-vercel.workflow.yml`; falta el token con scope `workflow` ([MYF-30](/MYF/issues/MYF-30), bloqueado por [MYF-31](/MYF/issues/MYF-31)).
+- No se despliega a producción sin aprobación del CEO; la URL actual sirve `main`@`130f32b` (ver [DEPLOYMENT.md](DEPLOYMENT.md)).
+
 ## ✅ Coherencia de fechas "hoy" UTC/local (ADR-0014, COMPLETADO)
 
 - **Definición única de "hoy"**: `todayIso()` (fecha local) como fuente de
