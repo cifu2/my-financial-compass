@@ -1,5 +1,12 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Verificación continua (2026-08-30)
+
+- **`main` en verde**: build + lint sin errores y suite completa en verde (sincronizada con `origin/main`).
+- **CI por push (MYF-30) sigue bloqueado y apertura al token**: re-medido hoy contra la API de GitHub el `GH_TOKEN` activo — **ya no devuelve 401** (la premisa de [MYF-34](/MYF/issues/MYF-34) quedó obsoleta): `GET /user` → **HTTP 200**, scopes **`repo, user`** (todavía **sin `workflow`**); escritura de control bajo `.github/workflows/_probe.yaml` → **HTTP 404** (`.github/workflows/` no existe en `main`).
+- **Desbloqueo pendiente del CEO/board**: rotar `gh_token` por un PAT con scope `workflow`, o dar write access a Vercel (vía alternativa verificada en [MYF-33](/MYF/issues/MYF-33)). Confirmaciones al board en [MYF-32](/MYF/issues/MYF-32) y [MYF-33](/MYF/issues/MYF-33) pendientes desde 2026-08-25/26. El workflow de referencia sigue listo en `deploy/workflows/deploy-vercel.workflow.yml`; copia en `.github/workflows/` + push a `main` cierran el issue en un heartbeat.
+- No se despliega a producción sin aprobación del CEO;; ver [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## ✅ Verificación continua (2026-08-26)
 
 - **`main` en verde**: `npm run build` (typecheck + vite build) y `npm run lint` sin errores; suite completa **372/372 tests** pasando.
