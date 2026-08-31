@@ -1,5 +1,12 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Fix verificado subido a `origin/main` (2026-08-31, ~15:00 UTC)
+
+- **`main` en verde**: build + lint sin errores y suite completa **372/372** en verde.
+- **Fix i18n/CSV/dark-mode público en `origin/main`**: el commit `90cbe5d` (re-corrupción de la clave i18n `budgetRemoved`, consolidación de parseo de fechas en `lib/dates.ts`, localización de strings incrustados, exportación CSV y dark mode) ya está **pusheado** a `origin/main` vía cherry-pick en `main` local.
+- **Historial dividido para no bloquear el código verificado**: el único commit que requiere scope `workflow` (`.github/workflows/deploy-vercel.yml`) se ha preservado en la rama local **`ci/vercel-workflow`** (apunta a `f18c4ae`, que incluye el workflow + todos los docs de verificación). `main` local queda con el fix y los docs; **`git push origin main` ya no está gated** por el token para los commits de código.
+- **MYF-30 sigue bloqueado por token**: cuando el `GH_TOKEN` tenga scope `workflow`, hay que volver a incorporar `.github/workflows/deploy-vercel.yml` desde `ci/vercel-workflow` (o `deploy/workflows/deploy-vercel.workflow.yml`) a `main` y hacer push — **siempre con aprobación previa del CEO** (ver gate de despliegue en [DEPLOYMENT.md](DEPLOYMENT.md)).
+
 ## ✅ Verificación continua (2026-08-30)
 
 - **`main` en verde**: build + lint sin errores y suite completa en verde (sincronizada con `origin/main`).
