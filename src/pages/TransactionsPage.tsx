@@ -31,8 +31,9 @@ import {
   validateField,
   type Validator,
 } from '../lib/validation'
-import { formatDate, todayIso } from '../lib/dates'
+import { formatDate, parseDdmmYyyy, todayIso } from '../lib/dates'
 import { translate, type UIKey } from '../lib/i18n'
+import { buildTransactionsCsv, downloadCsv } from '../lib/csvExport'
 import '../features/transactions/transactions.css'
 
 interface TxForm {
@@ -236,7 +237,7 @@ export default function TransactionsPage() {
         amount: Number(tx.amount.replace(',', '.')),
         type: tx.type as 'income' | 'expense',
         categoryId: tx.categoryId,
-        date: toIsoDate(tx.date),
+        date: parseDdmmYyyy(tx.date),
         groupId,
       })
       showTxSaved(t('toast.transactionUpdated'))
@@ -247,7 +248,7 @@ export default function TransactionsPage() {
           amount: Number(tx.amount.replace(',', '.')),
           type: tx.type as 'income' | 'expense',
           categoryId: tx.categoryId,
-          date: toIsoDate(tx.date),
+          date: parseDdmmYyyy(tx.date),
           groupId,
         },
         buildSplit(),
@@ -315,6 +316,13 @@ export default function TransactionsPage() {
       const proposed = value !== TX_CONTEXT_PERSONAL && value !== TX_CONTEXT_ALL ? value : ''
       setTx((prev) => ({ ...prev, groupId: proposed }))
     }
+  }
+
+  function handleExportCsv() {
+    const csv = buildTransactionsCsv(visibleTransactions, readSessionUser()?.currency ?? 'EUR', (id) => {
+      return store.categories.find((c) => c.id === id) ?? undefined
+    })
+    downloadCsv(csv, `transacciones_${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
   const showListContext = hasGroups
@@ -468,6 +476,14 @@ export default function TransactionsPage() {
               <a className="btn btn--secondary" href="#/balances">
                 {t('split.balancesLink')}
               </a>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={handleExportCsv}
+                title={t('common.exportHint')}
+              >
+                {t('common.downloadCsv')}
+              </button>
               {showListContext && (
                 <label className="tx-context-filter">
                   <span className="visually-hidden">{t('recurring.contextFilterLabel')}</span>
@@ -624,9 +640,4 @@ export default function TransactionsPage() {
       ))}
     </Page>
   )
-}
-
-function toIsoDate(ddmmYYYY: string): string {
-  const [d, m, y] = ddmmYYYY.split('/').map((p) => (p || '').padStart(2, '0'))
-  return `${y}-${m}-${d}`
 }

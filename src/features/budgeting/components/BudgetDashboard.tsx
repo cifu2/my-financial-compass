@@ -2,6 +2,7 @@ import type { Budget, BudgetRow, BudgetSummary } from '../types/index'
 import { BudgetProgressBar } from './BudgetProgressBar'
 import { useAppCurrency } from '../../auth/state/AuthContext'
 import { formatMoney } from '../../../lib/money'
+import { translate, type UIKey } from '../../../lib/i18n'
 import type { Locale } from '../../../lib/dates'
 
 export interface BudgetDashboardProps {
@@ -16,6 +17,8 @@ export interface BudgetDashboardProps {
   emptyText?: string
   onEdit?: (budget: Budget) => void
   onDelete?: (budget: Budget) => void
+  /** Locale for i18n lookups. Defaults to 'es'. */
+  locale?: Locale
 }
 
 function money(n: number, currency: string, locale: Locale): string {
@@ -33,17 +36,28 @@ export function BudgetDashboard({
   previousSpentByBudgetId,
   monthLabel,
   isGroup = false,
-  breakdownLabel = 'Breakdown by member',
-  emptyText = 'No budgets configured yet. Create a budget to start tracking your monthly spending.',
+  breakdownLabel,
+  emptyText,
   onEdit,
   onDelete,
+  locale = 'es',
 }: BudgetDashboardProps) {
   const currency = useAppCurrency()
+  const t = (key: UIKey) => translate(locale, key)
+  const effectiveBreakdownLabel = breakdownLabel ?? t('budget.breakdownByMember')
+  const effectiveEmptyText = emptyText ?? t('budget.noBudgets')
+
+  const totalSpent = money(summary.totalSpent, currency, locale)
+  const totalLimit = money(summary.totalLimit, currency, locale)
+
+  const acrossLabel = summary.budgetCount > 0
+    ? t('budget.acrossBudgets').replace('{count}', String(summary.budgetCount))
+    : ''
 
   if (rows.length === 0) {
     return (
       <div className="panel panel--muted" role="status">
-        <p className="text-muted mt-0">{emptyText}</p>
+        <p className="text-muted mt-0">{effectiveEmptyText}</p>
       </div>
     )
   }
@@ -52,11 +66,16 @@ export function BudgetDashboard({
     <>
       <div className="panel panel--muted" aria-live="polite">
         <p className="text-muted mt-0">
-          You have spent <strong>{money(summary.totalSpent, currency, 'es')}</strong> of{' '}
-          <strong>{money(summary.totalLimit, currency, 'es')}</strong> total
-          {summary.budgetCount > 0 && (
-            <span className="text-note"> across {summary.budgetCount} budgets</span>
-          )}
+          {t('budget.youHaveSpent')}
+          {' '}
+          <strong>{totalSpent}</strong>
+          {' '}
+          {t('budget.of')}
+          {' '}
+          <strong>{totalLimit}</strong>
+          {acrossLabel ? (
+            <span className="text-note"> {acrossLabel}</span>
+          ) : null}
           {monthLabel ? <span className="text-note"> · {monthLabel}</span> : null}
         </p>
       </div>
@@ -70,11 +89,11 @@ export function BudgetDashboard({
                 <span className="budget-card__name">
                   {row.categoryName}
                   {isGroup && (
-                    <span className="badge badge--muted">{breakdownLabel}</span>
+                    <span className="badge badge--muted">{effectiveBreakdownLabel}</span>
                   )}
                   {previous !== undefined && (
                     <span className="budget-card__prev">
-                      prev month: {money(previous, currency, 'es')}
+                      {t('budget.prevMonth')}: {money(previous, currency, locale)}
                     </span>
                   )}
                 </span>
@@ -124,7 +143,7 @@ export function BudgetDashboard({
                       className="btn btn--secondary"
                       onClick={() => onEdit(row.budget)}
                     >
-                      Edit
+                      {t('budget.edit')}
                     </button>
                   )}
                   {onDelete && (
@@ -133,7 +152,7 @@ export function BudgetDashboard({
                       className="btn btn--danger"
                       onClick={() => onDelete(row.budget)}
                     >
-                      Delete
+                      {t('budget.delete')}
                     </button>
                   )}
                 </div>

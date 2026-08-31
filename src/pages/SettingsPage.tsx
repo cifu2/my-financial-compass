@@ -10,11 +10,13 @@ import { GroupAdminPanel } from '../features/groups/components/GroupAdminPanel'
 import { useAuth } from '../features/auth/state/AuthContext'
 import { formatDate, type Locale } from '../lib/dates'
 import { translate, type UIKey } from '../lib/i18n'
+import { useDarkMode } from '../hooks/useDarkMode'
 
 export default function SettingsPage() {
   const { locale, setLocale } = useAppState()
   const { user } = useAuth()
   const t = (key: UIKey) => translate(locale, key)
+  const [darkMode, toggleDarkMode] = useDarkMode()
 
   function onSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -23,10 +25,10 @@ export default function SettingsPage() {
   const today = new Date()
 
   return (
-    <Page title="Settings">
+    <Page title={t('settings.title')}>
       <div className="stack">
         <div className="panel">
-          <h2>Settings</h2>
+          <h2>{t('settings.title')}</h2>
           {user && <Avatar name={user.name} color={user.avatar} size="lg" />}
           <p className="text-muted">
             {user?.email} · {user?.currency}
@@ -70,7 +72,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="panel">
-          <h2>Preferences</h2>
+          <h2>{t('settings.preferencesTitle')}</h2>
           <form onSubmit={onSave}>
             <div className="form-row">
               <SelectField
@@ -84,6 +86,14 @@ export default function SettingsPage() {
                   { value: 'en', label: 'English' },
                 ]}
               />
+              <label className="setting-toggle">
+                <input
+                  type="checkbox"
+                  checked={darkMode}
+                  onChange={toggleDarkMode}
+                />
+                {t('settings.darkMode')}
+              </label>
             </div>
             <div className="form-row">
               <p className="text-muted">

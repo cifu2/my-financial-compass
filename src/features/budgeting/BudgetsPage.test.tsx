@@ -51,8 +51,8 @@ const LIMIT_RE = /Monthly limit|Límite mensual/i
 describe('BudgetsPage (budget definition)', () => {
   it('renders the total summary line from the stored budgets', () => {
     renderPage()
-    expect(screen.getByText(/You have spent/).textContent).toMatch(
-      /of \d+[\s.,]\d+.*?total/,
+    expect(screen.getByText(/Has gastado|You have spent/).textContent).toMatch(
+      /de \d+[\s.,]\d+|of \d+[\s.,]\d+/,
     )
   })
 

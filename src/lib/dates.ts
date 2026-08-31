@@ -96,3 +96,9 @@ export function monthLabel(month: string, locale: Locale = 'es'): string {
     year: 'numeric',
   }).format(date)
 }
+
+/** Parse a DD/MM/YYYY string (from a text input) into an ISO yyyy-MM-dd. */
+export function parseDdmmYyyy(value: string): string {
+  const [d, m, y] = value.split('/').map((p) => (p || '').padStart(2, '0'))
+  return `${y}-${m}-${d}`
+}

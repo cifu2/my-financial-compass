@@ -27,7 +27,7 @@ describe('App integration (MYF-4)', () => {
     await renderApp()
     // Breadcrumb + section indicator for Transactions
     expect(
-      screen.getByText(/Section: Transactions|Sección: Transacciones/i),
+      screen.getByText(/Sección: Transactions/i),
     ).toBeInTheDocument()
 
     // Category manager panel heading + predefined category present

@@ -63,6 +63,23 @@ function AppShell() {
     if (isAuthKey(route.key)) navigate(DEFAULT_ROUTE)
   }, [route.key, navigate])
 
+  // Apply data-theme to <html> so CSS variables work even when the user
+  // overrides the system preference (respects prefers-color-scheme otherwise).
+  useEffect(() => {
+    function applyTheme() {
+      try {
+        const stored = localStorage.getItem('darkMode')
+        const dark = stored === 'true'
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+      } catch {
+        document.documentElement.setAttribute('data-theme', 'light')
+      }
+    }
+    applyTheme()
+    window.addEventListener('dark-mode-change', applyTheme)
+    return () => window.removeEventListener('dark-mode-change', applyTheme)
+  }, [])
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#content">
@@ -78,7 +95,7 @@ function AppShell() {
         </div>
       </header>
       <main className="app-main" id="content">
-        <Breadcrumb route={route} />
+        <Breadcrumb route={route} homeLabel={translate(locale, 'breadcrumb.home')} sectionLabel={translate(locale, 'breadcrumb.section')} />
         {isBooting ? (
           <DashboardSkeleton label={translate(locale, 'loading.dashboard')} />
         ) : (

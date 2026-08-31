@@ -20,7 +20,7 @@ import {
   validateField,
   type Validator,
 } from '../lib/validation'
-import { formatDate } from '../lib/dates'
+import { formatDate, parseDdmmYyyy } from '../lib/dates'
 import { formatMoney } from '../lib/money'
 import { translate, type UIKey } from '../lib/i18n'
 import { ownershipPercentage } from '../features/investments/services/portfolio'
@@ -169,7 +169,7 @@ export default function InvestmentsPage() {
         name: inv.name.trim(),
         ticker: inv.ticker.trim() || undefined,
         type: inv.type as 'stocks' | 'funds' | 'crypto' | 'bonds' | 'other',
-        purchaseDate: toIsoDate(inv.purchaseDate),
+        purchaseDate: parseDdmmYyyy(inv.purchaseDate),
         quantity: 1,
         investedAmount: Number(inv.investedAmount.replace(',', '.')),
         currency: scopeCurrencyFor(userId, scope === '' ? undefined : scope),
@@ -265,7 +265,7 @@ export default function InvestmentsPage() {
             </div>
             <div className="form-row">
               <SelectField
-                label="Type"
+                label={t('investment.type')}
                 name="invType"
                 required
                 value={inv.type}
@@ -334,7 +334,7 @@ export default function InvestmentsPage() {
                 <tr>
                   <th scope="col">Name</th>
                   <th scope="col">Ticker</th>
-                  <th scope="col">Type</th>
+                  <th scope="col">{t('investment.typeColumn')}</th>
                   <th scope="col">{t('fld.date')}</th>
                   <th scope="col">{t('fld.value')}</th>
                   <th scope="col">{t('investment.ownershipTitle')}</th>
@@ -426,11 +426,6 @@ export default function InvestmentsPage() {
       ))}
     </Page>
   )
-}
-
-function toIsoDate(ddmmYYYY: string): string {
-  const [d, m, y] = ddmmYYYY.split('/').map((p) => (p || '').padStart(2, '0'))
-  return `${y}-${m}-${d}`
 }
 
 /** Group display name for the permission notice, or null when unknown. */
