@@ -1,5 +1,12 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Re-verificación (2026-08-31, ~22:50 UTC)
+
+- **Sin cambios de código** desde la verificación 20:15 UTC de hoy; `main` sigue limpio y sincronizado con `origin/main` (build + lint + suite 372/372 en verde según esa pasada).
+- **Token re-medido de nuevo**: `GET /user` → HTTP 200, scopes **`repo, user`** (sigue **sin `workflow`**); `PUT .github/workflows/deploy-vercel.yml` de prueba → **HTTP 404**. [MYF-30](/MYF/issues/MYF-30) sigue gated por el `GH_TOKEN`.
+- **Ruta de cierre en un heartbeat verificada como intacta**: la rama local `ci/vercel-workflow` conserva `.github/workflows/deploy-vercel.yml` (con `VERCEL_ORG_ID`/`VERCEL_PROJECT_ID`), y `deploy/workflows/deploy-vercel.workflow.yml` sigue en `main`. Cuando el CEO rote el token a un PAT con scope `workflow`+`repo` (o conceda write access a Vercel), el workflow se incorpora a `main` y se cierra MYF-30 en un solo heartbeat, con push a `main` (gated por aprobación del CEO, ver [DEPLOYMENT.md](DEPLOYMENT.md)).
+- **Desbloqueo**: sigue en manos del CEO/board — confirmación pendiente en [MYF-33](/MYF/issues/MYF-33) (Opción A: rotar `gh_token` con scope `workflow`; Opción B: write access de Vercel).
+
 ## ✅ Verificación continua (2026-08-31, ~20:15 UTC)
 
 - **`main` en verde**: `npm run build` (typecheck + vite build) y `npm run lint` sin errores; suite completa **372/372 tests** pasando (42 archivos).
