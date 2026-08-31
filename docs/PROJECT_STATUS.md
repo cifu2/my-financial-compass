@@ -1,5 +1,12 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Verificación continua (2026-08-31, ~20:15 UTC)
+
+- **`main` en verde**: `npm run build` (typecheck + vite build) y `npm run lint` sin errores; suite completa **372/372 tests** pasando (42 archivos).
+- **`main` sincronizada con `origin/main`** (0/0 ahead/behind).
+- **Token re-medido de nuevo hoy**: `GET /user` → HTTP 200, scopes **`repo, user`** (sigue **sin `workflow`**); escritura de control bajo `.github/workflows/_probe-workflow.yaml` → **HTTP 404**, escritura no-workflow bajo `.github/_probe.txt` → **HTTP 201**. [MYF-30](/MYF/issues/MYF-30) sigue bloqueado por el giro del `GH_TOKEN` a un PAT con scope `workflow` (o write access Vercel vía [MYF-33](/MYF/issues/MYF-33)); decisión pendiente del CEO/board.
+- Tooling estable desde el fix 2026-08-31 (~15:00 UTC); sin cambios de código en este heartbeat, solo re-verificación y actualización de este documento.
+
 ## ✅ Fix verificado subido a `origin/main` (2026-08-31, ~15:00 UTC)
 
 - **`main` en verde**: build + lint sin errores y suite completa **372/372** en verde.
