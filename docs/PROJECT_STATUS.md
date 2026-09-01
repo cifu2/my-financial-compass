@@ -1,5 +1,11 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Re-verificación (2026-09-01, ~01:10 UTC)
+
+- **Sin cambios de código** desde la re-verificación de las 22:50 UTC de ayer`; `main` sigue limpio y sincronizado con `origin/main`.
+- **Token re-medido de nuevo**: `GET /user` → HTTP 200 (login `cifu2`), scopes **`repo, user`** (sigue **sin `workflow`**). [MYF-30](/MYF/issues/MYF-30) continúa bloqueado: el CEO/board no ha rotado aún el `GH_TOKEN` a un PAT con scope `workflow`, ni ha concedido write access de Vercel (confirmaciones pendientes en [MYF-31](/MYF/issues/MYF-31)/[MYF-32](/MYF/issues/MYF-32)/[MYF-33](/MYF/issues/MYF-33)).
+- **Ruta de cierre intacta**: `ci/vercel-workflow` conserva `.github/workflows/deploy-vercel.yml` y `deploy/workflows/deploy-vercel.workflow.yml` sigue en `main`; la incorporación a `main` + push (con aprobación del CEO) cierra el issue en un heartbeat.
+
 ## ✅ Re-verificación (2026-08-31, ~22:50 UTC)
 
 - **Sin cambios de código** desde la verificación 20:15 UTC de hoy; `main` sigue limpio y sincronizado con `origin/main` (build + lint + suite 372/372 en verde según esa pasada).
