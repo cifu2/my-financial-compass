@@ -1,5 +1,11 @@
 # Estado del Proyecto - My Financial Compass
 
+## ✅ Re-verificación (2026-09-02, heartbeat)
+
+- **Sin cambios de código** desde el fix de las 00:52 UTC; `main` limpio y sincronizado con `origin/main` (0/0 ahead/behind).
+- **Token re-medido de nuevo**: `GET /user` → HTTP 200 (login `cifu2`), scopes **`repo, user`** (sigue **sin `workflow`**); `.github/workflows/` no existe en `main` y probe `PUT .github/workflows/_probe.yaml` → **HTTP 404**. [MYF-30](/MYF/issues/MYF-30) continúa bloqueado: el CEO/board no ha rotado aún el `GH_TOKEN` a un PAT con scope `workflow` (confirmaciones pendientes en [MYF-31](/MYF/issues/MYF-31)/[MYF-32](/MYF/issues/MYF-32)/[MYF-33](/MYF/issues/MYF-33)).
+- **Ruta de cierre intacta**: `ci/vercel-workflow` conserva `.github/workflows/deploy-vercel.yml` (con `VERCEL_ORG_ID`/`VERCEL_PROJECT_ID`) y `deploy/workflows/deploy-vercel.workflow.yml` sigue en `main`; la incorporación a `main` + push (con aprobación del CEO) cierra el issue en un heartbeat.
+
 ## ✅ Fix de regresión date-driven + verificación (2026-09-02, ~00:52 UTC)
 
 - **Bug corregido**: la invitación seed de `grp-hogar` para Lucía (`seed-token-hogar-lucia`) tenía `expiresAt` hardcodeado a `2026-09-01T08:00:00.000Z`; al cruzar esa fecha, `acceptInvitation` devolvía `invitation-not-pending` y el test `accepting a pending invitation creates a membership with the invited role` fallaba (1/372). Fix en `src/features/groups/data/seeds.ts`: `expiresAt` → `2099-12-31T23:59:59.000Z` (la invitación seed debe permanecer `pending`). Ningún test depende del valor exacto.
